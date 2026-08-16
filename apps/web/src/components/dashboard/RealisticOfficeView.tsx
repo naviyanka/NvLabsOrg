@@ -83,7 +83,6 @@ export default function RealisticOfficeView() {
   return (
     <div style={{
       width: "100%",
-      maxHeight: "60vh",
       position: "relative",
       borderRadius: 10,
       overflow: "hidden",
