@@ -140,6 +140,34 @@ export default function RealisticOfficeView() {
     const list = Array.from(agents.values())
       .filter(a => !a.isExternal && !a.agentId.startsWith("reviewer-"));
 
+    // Use mock agents if no real agents are connected (for testing walk animation)
+    if (list.length === 0) {
+      const MOCK_AGENTS = [
+        { id: "mock-0", name: "Alpha", status: "working", palette: 0 },
+        { id: "mock-1", name: "Nova", status: "idle", palette: 1 },
+        { id: "mock-2", name: "Cipher", status: "working", palette: 2 },
+        { id: "mock-3", name: "Omega", status: "working", palette: 3 },
+        { id: "mock-4", name: "Rex", status: "idle", palette: 4 },
+        { id: "mock-5", name: "Luna", status: "working", palette: 5 },
+        { id: "mock-6", name: "Kai", status: "working", palette: 6 },
+        { id: "mock-7", name: "Zoe", status: "idle", palette: 7 },
+      ];
+      return MOCK_AGENTS.map((agent, i) => {
+        const desk = DESK_POSITIONS[i % DESK_POSITIONS.length];
+        const color = AVATAR_COLORS[agent.palette % AVATAR_COLORS.length];
+        return {
+          id: agent.id,
+          name: agent.name,
+          desk,
+          deskIdx: i % DESK_POSITIONS.length,
+          color,
+          status: agent.status,
+          isWorking: agent.status === "working",
+          palette: agent.palette,
+        };
+      });
+    }
+
     return list.map((agent, i) => {
       const desk = DESK_POSITIONS[i % DESK_POSITIONS.length];
       const color = AVATAR_COLORS[agent.palette ?? (i % AVATAR_COLORS.length)];
