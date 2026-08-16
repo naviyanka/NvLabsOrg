@@ -96,7 +96,7 @@ export default function RealisticOfficeView() {
       background: "#080a10",
     }}>
       {/* Container — crops bottom dark bar */}
-      <div style={{ position: "relative", width: "100%", paddingBottom: "56%" }}>
+      <div style={{ position: "relative", width: "100%", paddingBottom: "62%" }}>
         <div style={{ position: "absolute", inset: 0 }}>
 
       {/* Background — cover from top, trims dark floor */}
@@ -104,7 +104,7 @@ export default function RealisticOfficeView() {
         src="/offices/realistic-office.png"
         alt="Office"
         draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "108%", objectFit: "cover", objectPosition: "top center", display: "block" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center", display: "block" }}
         onError={(e) => { (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg"; }}
       />
 
