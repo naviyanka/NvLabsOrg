@@ -6,6 +6,19 @@ import dynamic from "next/dynamic";
 
 const SpriteAvatar = dynamic(() => import("@/components/office/ui/SpriteAvatar"), { ssr: false });
 
+// Load character sprite assets (needed for SpriteAvatar to render)
+let assetsLoaded = false;
+async function ensureAssetsLoaded() {
+  if (assetsLoaded) return;
+  try {
+    const { loadAllAssets } = await import("@/components/office/sprites/assetLoader");
+    await loadAllAssets();
+    assetsLoaded = true;
+  } catch (e) {
+    console.warn("[RealisticOffice] Failed to load sprite assets:", e);
+  }
+}
+
 /**
  * Realistic Office View
  *
@@ -131,9 +144,17 @@ const AVATAR_COLORS = ["#22c55e", "#6366f1", "#3b82f6", "#a855f7", "#06b6d4", "#
 export default function RealisticOfficeView() {
   const agents = useOfficeStore((s) => s.agents);
   const reducedMotion = useRef(false);
+  const [spritesReady, setSpritesReady] = useState(assetsLoaded);
 
   useEffect(() => {
     reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  // Load character sprite assets on mount
+  useEffect(() => {
+    if (!assetsLoaded) {
+      ensureAssetsLoaded().then(() => setSpritesReady(true));
+    }
   }, []);
 
   const agentNodes = useMemo(() => {
@@ -248,6 +269,7 @@ export default function RealisticOfficeView() {
           delay={i * 0.8}
           noAnimation={reducedMotion.current}
           palette={agent.palette}
+          spritesReady={spritesReady}
         />
       ))}
 
@@ -267,10 +289,10 @@ export default function RealisticOfficeView() {
 }
 
 // ─── Agent Sprite (uses PixiJS pixel character + waypoint walking) ───
-function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnimation, palette }: {
+function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnimation, palette, spritesReady }: {
   desk: { x: number; y: number }; path: Array<{ x: number; y: number }>;
   color: string; name: string;
-  isWorking: boolean; status: string; delay: number; noAnimation: boolean; palette: number;
+  isWorking: boolean; status: string; delay: number; noAnimation: boolean; palette: number; spritesReady: boolean;
 }) {
   // Full path: entrance → waypoints → desk
   const fullPath = [ENTRANCE, ...path, desk];
@@ -316,7 +338,7 @@ function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnim
         animation: isWorking ? "agent-bob 1.5s ease-in-out infinite" : "none",
         opacity: status === "error" ? 0.4 : 1,
       }}>
-        <SpriteAvatar palette={palette} zoom={2} ready />
+        <SpriteAvatar palette={palette} zoom={2} ready={spritesReady} />
       </div>
 
       {/* Status dot under character */}
