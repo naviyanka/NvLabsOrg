@@ -89,8 +89,8 @@ export default function RealisticOfficeView() {
       overflow: "hidden",
       background: "#080a10",
     }}>
-      {/* Aspect ratio wrapper — matches image (3:2) so whole image is visible */}
-      <div style={{ position: "relative", width: "100%", paddingBottom: `${(1 / IMAGE_ASPECT) * 100}%` }}>
+      {/* Square container — image fits inside with contain */}
+      <div style={{ position: "relative", width: "100%", paddingBottom: "100%" }}>
         <div style={{ position: "absolute", inset: 0 }}>
 
       {/* Background — fills exactly, no crop, no gap */}
