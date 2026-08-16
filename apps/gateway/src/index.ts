@@ -5,7 +5,7 @@ import { telegramChannel, setTelegramAgentDefs, syncTelegramHiredAgents } from "
 import { config, CONFIG_DIR, hasSetupRun, reloadConfig, saveConfig } from "./config.js";
 import { runSetup } from "./setup.js";
 import { detectBackends, getBackend, getAllBackends } from "./backends.js";
-import { createOrchestrator, getMergeHistory, previewServer, recordProjectRatings, parseAgentOutput, setSessionDir, setStorageRoot, syncAgentDefs, getAllMetrics, clearMetrics, clearMemory, type Orchestrator, type OrchestratorEvent, type RuntimeOwnerInfo, type TeamPhaseChangedEvent } from "@nvlabs-org/orchestrator";
+import { createOrchestrator, getMergeHistory, previewServer, recordProjectRatings, parseAgentOutput, setSessionDir, setStorageRoot, syncAgentDefs, getAllMetrics, clearMetrics, clearMemory, getSessionHistory, getAgentFacts, getSharedKnowledge, type Orchestrator, type OrchestratorEvent, type RuntimeOwnerInfo, type TeamPhaseChangedEvent } from "@nvlabs-org/orchestrator";
 import type { Command, GatewayEvent, UserRole } from "@office/shared";
 import type { CommandMeta } from "./transport.js";
 import { DEFAULT_AGENT_DEFS, type AgentDefinition } from "@office/shared";
@@ -907,6 +907,114 @@ function handleCommand(parsed: Command, meta: CommandMeta) {
         console.log(`[Gateway] Failed to delete skill ${skillName}: ${e}`);
       }
       publishEvent({ type: "SKILL_LIST", skills: listSkills() });
+      break;
+    }
+    case "GET_AGENT_DETAILS": {
+      const agentId = parsed.agentId;
+      const agent = orc.getAgent(agentId);
+      const agentDef = agentDefs.find(d => {
+        // Match by name or check if the running agent was created from this def
+        const running = agent;
+        return running && (d.name === running.name || d.id === agentId);
+      });
+      const metrics = getAllMetrics();
+      const agentMetrics = metrics.agents?.[agentId];
+      // Get skill file contents
+      const skillFileNames = agentDef?.skillFiles ?? [];
+      const skills: Array<{ name: string; title: string; content: string }> = [];
+      for (const skillName of skillFileNames) {
+        const entryPath = getSkillEntryPath(skillName);
+        if (entryPath) {
+          try {
+            const content = readFileSync(entryPath, "utf-8");
+            const titleMatch = content.match(/^#\s+(.+)/m);
+            skills.push({ name: skillName, title: titleMatch?.[1] ?? skillName, content });
+          } catch { /* skip */ }
+        }
+      }
+      sendToClient(meta.clientId, {
+        type: "AGENT_DETAILS_LOADED",
+        agentId,
+        name: agent?.name ?? agentDef?.name ?? "Unknown",
+        role: agent?.role ?? agentDef?.role ?? "",
+        backend: agent?.backend,
+        personality: agentDef?.personality ?? "",
+        palette: agent?.palette ?? agentDef?.palette,
+        skillFiles: skillFileNames,
+        skills,
+        metrics: agentMetrics ? {
+          taskCount: agentMetrics.taskCount,
+          successCount: agentMetrics.successCount,
+          failCount: agentMetrics.failCount,
+          totalInputTokens: agentMetrics.totalInputTokens,
+          totalOutputTokens: agentMetrics.totalOutputTokens,
+          totalDurationMs: agentMetrics.totalDurationMs,
+          lastTaskAt: agentMetrics.lastTaskAt,
+        } : undefined,
+      });
+      break;
+    }
+    case "GET_AGENT_MEMORY": {
+      const agentId = parsed.agentId;
+      try {
+        const sessionHistoryStore = getSessionHistory(agentId);
+        const agentFactStore = getAgentFacts(agentId);
+        const sharedStore = getSharedKnowledge();
+        sendToClient(meta.clientId, {
+          type: "AGENT_MEMORY_LOADED",
+          agentId,
+          sessionHistory: (sessionHistoryStore?.history ?? []).map((s: any) => ({
+            taskId: s.taskId ?? "",
+            summary: s.summary ?? "No summary",
+            timestamp: s.completedAt ?? s.timestamp ?? 0,
+            durationMs: s.durationMs,
+            success: s.success,
+          })),
+          agentFacts: (agentFactStore?.facts ?? []).map((f: any) => ({
+            id: f.id ?? f.text?.slice(0, 12) ?? "",
+            text: f.text ?? "",
+            confidence: f.confidence,
+            createdAt: f.createdAt,
+          })),
+          sharedKnowledge: (sharedStore?.items ?? []).map((s: any) => ({
+            id: s.id ?? "",
+            text: s.text ?? "",
+            confirmedBy: s.confirmedBy,
+          })),
+        });
+      } catch (e) {
+        console.log(`[Gateway] GET_AGENT_MEMORY failed: ${e}`);
+        sendToClient(meta.clientId, {
+          type: "AGENT_MEMORY_LOADED",
+          agentId,
+          sessionHistory: [],
+          agentFacts: [],
+          sharedKnowledge: [],
+        });
+      }
+      break;
+    }
+    case "ATTACH_SKILL": {
+      const defIdx = agentDefs.findIndex(d => d.id === parsed.agentDefId);
+      if (defIdx !== -1) {
+        const def = agentDefs[defIdx];
+        const skills = new Set(def.skillFiles ?? []);
+        skills.add(parsed.skillName);
+        agentDefs[defIdx] = { ...def, skillFiles: [...skills] };
+        saveAgentDefs(agentDefs);
+        console.log(`[Gateway] Attached skill "${parsed.skillName}" to agent def "${def.name}"`);
+      }
+      break;
+    }
+    case "DETACH_SKILL": {
+      const defIdx = agentDefs.findIndex(d => d.id === parsed.agentDefId);
+      if (defIdx !== -1) {
+        const def = agentDefs[defIdx];
+        const skills = (def.skillFiles ?? []).filter(s => s !== parsed.skillName);
+        agentDefs[defIdx] = { ...def, skillFiles: skills };
+        saveAgentDefs(agentDefs);
+        console.log(`[Gateway] Detached skill "${parsed.skillName}" from agent def "${def.name}"`);
+      }
       break;
     }
     case "SYNC_CHAT_HISTORY": {

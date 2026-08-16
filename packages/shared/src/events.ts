@@ -454,6 +454,54 @@ export const CommandsLoadedEvent = z.object({
   })),
 });
 
+export const AgentDetailsLoadedEvent = z.object({
+  type: z.literal("AGENT_DETAILS_LOADED"),
+  agentId: z.string(),
+  name: z.string(),
+  role: z.string(),
+  backend: z.string().optional(),
+  personality: z.string().optional(),
+  palette: z.number().optional(),
+  skillFiles: z.array(z.string()).optional(),
+  skills: z.array(z.object({
+    name: z.string(),
+    title: z.string(),
+    content: z.string(),
+  })).optional(),
+  metrics: z.object({
+    taskCount: z.number(),
+    successCount: z.number(),
+    failCount: z.number(),
+    totalInputTokens: z.number(),
+    totalOutputTokens: z.number(),
+    totalDurationMs: z.number(),
+    lastTaskAt: z.number(),
+  }).optional(),
+});
+
+export const AgentMemoryLoadedEvent = z.object({
+  type: z.literal("AGENT_MEMORY_LOADED"),
+  agentId: z.string(),
+  sessionHistory: z.array(z.object({
+    taskId: z.string().optional(),
+    summary: z.string(),
+    timestamp: z.number(),
+    durationMs: z.number().optional(),
+    success: z.boolean().optional(),
+  })),
+  agentFacts: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    confidence: z.number().optional(),
+    createdAt: z.number().optional(),
+  })),
+  sharedKnowledge: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    confirmedBy: z.array(z.string()).optional(),
+  })),
+});
+
 export const GatewayEventSchema = z.discriminatedUnion("type", [
   AgentsSyncEvent,
   AgentStatusEvent,
@@ -501,6 +549,8 @@ export const GatewayEventSchema = z.discriminatedUnion("type", [
   FileDiffEvent,
   SchedulesLoadedEvent,
   CommandsLoadedEvent,
+  AgentDetailsLoadedEvent,
+  AgentMemoryLoadedEvent,
 ]);
 
 export type TokenUsage = z.infer<typeof TokenUsage>;
@@ -550,4 +600,6 @@ export type PipelineProgressEvent = z.infer<typeof PipelineProgressEvent>;
 export type FileDiffEvent = z.infer<typeof FileDiffEvent>;
 export type SchedulesLoadedEvent = z.infer<typeof SchedulesLoadedEvent>;
 export type CommandsLoadedEvent = z.infer<typeof CommandsLoadedEvent>;
+export type AgentDetailsLoadedEvent = z.infer<typeof AgentDetailsLoadedEvent>;
+export type AgentMemoryLoadedEvent = z.infer<typeof AgentMemoryLoadedEvent>;
 export type GatewayEvent = z.infer<typeof GatewayEventSchema>;

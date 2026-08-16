@@ -699,6 +699,19 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
             <TooltipTrigger asChild>
               <button
                 className="tdx"
+                onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent("open-agent-management", { detail: { agentId } })); }}
+                aria-label="Manage agent"
+                style={{ fontSize: 11 }}
+              >{"\u2699"}</button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Manage agent</TooltipContent>
+          </Tooltip>
+        )}
+        {!teamId && isOwner && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="tdx"
                 onClick={(e) => { e.stopPropagation(); onFire(agentId); }}
                 aria-label="Fire agent"
               >{"\u2715"}</button>

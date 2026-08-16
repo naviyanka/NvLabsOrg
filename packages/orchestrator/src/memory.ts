@@ -28,6 +28,10 @@ export {
   clearAgentWorkState,
   setStorageRoot,
   saveSessionHistory,
+  // Memory inspection
+  getSessionHistory,
+  getAgentFacts,
+  getSharedKnowledge,
 } from "@nvlabs-org/memory";
 
 export type { ReviewPattern, ProjectRecord } from "@nvlabs-org/memory";

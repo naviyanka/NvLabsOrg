@@ -67,6 +67,7 @@ const CommandPalette = dynamic(() => import("@/components/office/ui/CommandPalet
 const ProjectBar = dynamic(() => import("@/components/office/ui/ProjectBar"), { ssr: false });
 const NewProjectModal = dynamic(() => import("@/components/office/ui/NewProjectModal"), { ssr: false });
 const PipelineBuilder = dynamic(() => import("@/components/office/ui/PipelineBuilder"), { ssr: false });
+const AgentManagementPanel = dynamic(() => import("@/components/office/ui/AgentManagementPanel"), { ssr: false });
 const AblyLoader = dynamic(() => import("@/hooks/useAblyLoader"), { ssr: false });
 const LeftSidebar = dynamic(() => import("@/components/office/ui/LeftSidebar"), { ssr: false });
 
@@ -214,6 +215,7 @@ export default function OfficePage() {
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showPipelineBuilder, setShowPipelineBuilder] = useState(false);
+  const [manageAgentId, setManageAgentId] = useState<string | null>(null);
   const [editingAgent, setEditingAgent] = useState<AgentDefinition | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [mobileTeamOpen, setMobileTeamOpen] = useState(false);
@@ -292,9 +294,12 @@ export default function OfficePage() {
     const metricsHandler = () => setShowMetrics(true);
     window.addEventListener("open-log-viewer", handler);
     window.addEventListener("open-metrics", metricsHandler);
+    const agentManageHandler = (e: Event) => { setManageAgentId((e as CustomEvent).detail?.agentId ?? null); };
+    window.addEventListener("open-agent-management", agentManageHandler);
     return () => {
       window.removeEventListener("open-log-viewer", handler);
       window.removeEventListener("open-metrics", metricsHandler);
+      window.removeEventListener("open-agent-management", agentManageHandler);
     };
   }, []);
 
@@ -1971,6 +1976,7 @@ export default function OfficePage() {
                     onContextMenu={(e) => {
                       const actions: ContextMenuAction[] = [
                         { label: "Open Chat", icon: "💬", onClick: () => { setSelectedAgent(agent.agentId); setChatOpen(true); } },
+                        { label: "Manage Agent", icon: "⚙", onClick: () => { setManageAgentId(agent.agentId); } },
                         { label: "Assign Task", icon: "📋", onClick: () => { setSelectedAgent(agent.agentId); setChatOpen(true); } },
                         { label: "Cancel Task", icon: "⏹", disabled: agentState?.status !== "working", onClick: () => { sendCommand({ type: "CANCEL_TASK", agentId: agent.agentId }); } },
                         { label: "Fire Agent", icon: "🔥", danger: true, onClick: () => { sendCommand({ type: "FIRE_AGENT", agentId: agent.agentId }); } },
@@ -2859,6 +2865,10 @@ export default function OfficePage() {
 
       {showPipelineBuilder && (
         <PipelineBuilder isOpen={showPipelineBuilder} onClose={() => setShowPipelineBuilder(false)} />
+      )}
+
+      {manageAgentId && (
+        <AgentManagementPanel isOpen={!!manageAgentId} onClose={() => setManageAgentId(null)} agentId={manageAgentId} />
       )}
 
       {showCreateAgent && (

@@ -127,6 +127,28 @@ export const DeleteSkillCommand = z.object({
   name: z.string(),
 });
 
+export const GetAgentDetailsCommand = z.object({
+  type: z.literal("GET_AGENT_DETAILS"),
+  agentId: z.string(),
+});
+
+export const GetAgentMemoryCommand = z.object({
+  type: z.literal("GET_AGENT_MEMORY"),
+  agentId: z.string(),
+});
+
+export const AttachSkillCommand = z.object({
+  type: z.literal("ATTACH_SKILL"),
+  agentDefId: z.string(),
+  skillName: z.string(),
+});
+
+export const DetachSkillCommand = z.object({
+  type: z.literal("DETACH_SKILL"),
+  agentDefId: z.string(),
+  skillName: z.string(),
+});
+
 export const DeleteAgentDefCommand = z.object({
   type: z.literal("DELETE_AGENT_DEF"),
   agentDefId: z.string(),
@@ -403,6 +425,10 @@ export const CommandSchema = z.discriminatedUnion("type", [
   ListSkillsCommand,
   SaveSkillCommand,
   DeleteSkillCommand,
+  GetAgentDetailsCommand,
+  GetAgentMemoryCommand,
+  AttachSkillCommand,
+  DetachSkillCommand,
   SyncChatHistoryCommand,
   LoadChatHistoryCommand,
   GetLogsCommand,
@@ -463,6 +489,10 @@ export type SaveConfigCommand = z.infer<typeof SaveConfigCommand>;
 export type ListSkillsCommand = z.infer<typeof ListSkillsCommand>;
 export type SaveSkillCommand = z.infer<typeof SaveSkillCommand>;
 export type DeleteSkillCommand = z.infer<typeof DeleteSkillCommand>;
+export type GetAgentDetailsCommand = z.infer<typeof GetAgentDetailsCommand>;
+export type GetAgentMemoryCommand = z.infer<typeof GetAgentMemoryCommand>;
+export type AttachSkillCommand = z.infer<typeof AttachSkillCommand>;
+export type DetachSkillCommand = z.infer<typeof DetachSkillCommand>;
 export type GetLogsCommand = z.infer<typeof GetLogsCommand>;
 export type GetMetricsCommand = z.infer<typeof GetMetricsCommand>;
 export type ClearMetricsCommand = z.infer<typeof ClearMetricsCommand>;
