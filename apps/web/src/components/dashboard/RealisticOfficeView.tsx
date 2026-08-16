@@ -122,6 +122,22 @@ export default function RealisticOfficeView() {
         </div>
       ))}
 
+      {/* DEBUG: Desk position markers — remove after alignment */}
+      {DESK_POSITIONS.map((desk, i) => (
+        <div key={`debug-${i}`} style={{
+          position: "absolute", left: `${desk.x}%`, top: `${desk.y}%`,
+          transform: "translate(-50%, -50%)",
+          width: 16, height: 16, borderRadius: "50%",
+          background: "rgba(255, 0, 0, 0.7)",
+          border: "2px solid #fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 7, fontWeight: 700, color: "#fff",
+          pointerEvents: "none", zIndex: 50,
+        }}>
+          {i}
+        </div>
+      ))}
+
       {/* Agent Avatars */}
       {agentNodes.map((agent, i) => (
         <AgentSprite
