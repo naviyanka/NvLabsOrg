@@ -1,4 +1,5 @@
 import { useRef, useEffect, memo, useCallback, useState, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { useScrollAnchor } from "./useScrollAnchor";
 import { getStatusConfig, BACKEND_OPTIONS } from "./office-constants";
 import { TERM_FONT, TERM_SIZE, TERM_GREEN, TERM_DIM, TERM_TEXT, TERM_TEXT_BRIGHT, TERM_BG, TERM_PANEL, TERM_SURFACE, TERM_BORDER, TERM_BORDER_DIM, TERM_SEM_GREEN, TERM_SEM_YELLOW, TERM_SEM_RED, TERM_SEM_BLUE, TERM_SEM_CYAN } from "./termTheme";
@@ -8,6 +9,7 @@ import { TermButton, TermInput, TermEmpty } from "./primitives";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CostBadge } from "./CostEstimator";
 import { SlashCommandMenu, type SlashCommand } from "./SlashCommands";
+import { sendCommand } from "@/lib/connection";
 
 /** Export an agent's conversation as a Markdown file download */
 function exportChatAsMarkdown(agentName: string, messages: Array<{ role: string; text: string; timestamp: number }>) {
@@ -554,11 +556,15 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
 
   const handleSlashSelect = useCallback((cmd: { command: string; argHint?: string }) => {
     if (cmd.argHint) {
+      // Command needs arguments — fill the prompt so user can type the arg
       onPromptChange(cmd.command + " ");
     } else {
-      onPromptChange(cmd.command);
-      // Delay to allow React to re-render with new prompt before submit reads it
-      setTimeout(() => onSubmit(), 50);
+      // No-arg command — use flushSync to ensure prompt is updated synchronously,
+      // then call onSubmit which reads from promptRef (always fresh)
+      flushSync(() => {
+        onPromptChange(cmd.command);
+      });
+      onSubmit();
     }
   }, [onPromptChange, onSubmit]);
 
