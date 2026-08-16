@@ -72,15 +72,15 @@ export default function RealisticOfficeView() {
   }, [agents]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 400, borderRadius: 10, overflow: "hidden", background: "#0a0c14" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 420, borderRadius: 10, overflow: "hidden", background: "#0a0c14" }}>
       {/* Background Image */}
       <img
         src="/offices/realistic-office.png"
         alt="Realistic isometric office"
-        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center", position: "absolute", inset: 0, background: "#0a0c14" }}
         onError={(e) => {
-          // Fallback to cyberpunk if realistic image not found
           (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg";
+          (e.target as HTMLImageElement).style.objectFit = "cover";
         }}
       />
 
