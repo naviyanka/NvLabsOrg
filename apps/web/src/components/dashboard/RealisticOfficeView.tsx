@@ -29,39 +29,103 @@ const p = (x: number, iy: number) => ({ x, y: IMG_TOP + iy * IMG_SCALE });
 // Desk positions in container coordinates
 const DESK_POSITIONS = [
   // Top-left room (Planning)
-  p(20.5, -8), p(29.8, -7.8), p(16, 28.5), p(19, 28.5),
+  p(20.3, -8), p(29.8, -7.8), p(16.2, 17.5), p(28.5, 17.5),
   // Top-center room (Development)
-  p(44, 19), p(47, 19), p(44, 28), p(47, 28),
+  p(47, -7.5), p(55.77, -7.5), p(43.9, 18.9), p(46.7, 18.9),
   // Top-right room (QA & Security)
-  p(72, 19), p(75, 19), p(73, 28), p(75, 28),
+  p(73.5, -7), p(81.3, -7), p(72.7, 18), p(75.4, 18),
   // Mid-left room (Data)
-  p(15.5, 44), p(19.5, 44), p(15.5, 50), p(18.5, 50),
+  p(16.5, 44), p(20.2, 44), p(15.9, 54.7), p(18.5, 54.7),
   // Center (Meeting room)
-  p(46.5, 49.5), p(51.5, 41), p(56, 45), p(51.5, 54.5),
+  p(46.5, 45.5), p(51.4, 39), p(56, 45), p(51.5, 62.5),
   // Mid-right room (Automation)
-  p(73, 44), p(76, 44), p(74.5, 50), p(77.5, 50),
+  p(75.8, 44), p(87, 44), p(74.8, 54.3), p(77.5, 54.3),
   // Bottom-left room (Research)
-  p(16.5, 69), p(24.5, 69), p(12.5, 86), p(26, 86),
+  p(16.5, 87.3), p(24, 98), p(12.5, 117), p(27.4, 106),
   // Bottom-center room (Operations)
-  p(46.8, 69), p(57.2, 69), p(45.5, 86), p(48.2, 86),
+  p(46.8, 87), p(57.2, 87), p(45.3, 116.8), p(58.7, 116.65),
   // Bottom-right room (Support)
-  p(76, 69), p(87, 69), p(86.2, 86.5), p(88.6, 86.5),
+  p(76, 87), p(87, 87), p(86.1, 116.9), p(88.6, 116.5),
 ];
 
 // Zone labels in container coordinates
 const ZONE_LABELS = [
-  { name: "Planning Zone", x: 23, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#a855f7" },
-  { name: "Development Zone", x: 52, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#22c55e" },
-  { name: "QA & Security Zone", x: 80, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#f97316" },
-  { name: "Data Zone", x: 22.5, y: IMG_TOP + 34 * IMG_SCALE, color: "#06b6d4" },
-  { name: "Meeting Area", x: 52, y: IMG_TOP + 34 * IMG_SCALE, color: "#eab308" },
-  { name: "Automation Zone", x: 81, y: IMG_TOP + 34 * IMG_SCALE, color: "#3b82f6" },
-  { name: "Research Zone", x: 21, y: IMG_TOP + 60 * IMG_SCALE, color: "#ec4899" },
-  { name: "Operations Zone", x: 52, y: IMG_TOP + 60 * IMG_SCALE, color: "#84cc16" },
-  { name: "Support Zone", x: 81, y: IMG_TOP + 60 * IMG_SCALE, color: "#14b8a6" },
+  { name: "Planning Zone", x: 23, y: IMG_TOP + -18.5 * IMG_SCALE, color: "#a855f7" },
+  { name: "Development Zone", x: 51, y: IMG_TOP + -18.5 * IMG_SCALE, color: "#22c55e" },
+  { name: "QA & Security Zone", x: 80, y: IMG_TOP + -18.5 * IMG_SCALE, color: "#f97316" },
+  { name: "Data Zone", x: 22.5, y: IMG_TOP + 27.8 * IMG_SCALE, color: "#06b6d4" },
+  { name: "Meeting Area", x: 52, y: IMG_TOP + 25.8 * IMG_SCALE, color: "#eab308" },
+  { name: "Automation Zone", x: 81, y: IMG_TOP + 27.8 * IMG_SCALE, color: "#3b82f6" },
+  { name: "Research Zone", x: 21, y: IMG_TOP + 71 * IMG_SCALE, color: "#ec4899" },
+  { name: "Operations Zone", x: 52, y: IMG_TOP + 71 * IMG_SCALE, color: "#84cc16" },
+  { name: "Support Zone", x: 81, y: IMG_TOP + 71 * IMG_SCALE, color: "#14b8a6" },
 ];
 
 const ENTRANCE = { x: 50, y: IMG_TOP };
+
+// ─── Hallway Waypoints ───
+// Central corridors that agents walk through to reach their zones
+// Horizontal corridor: y ~33% of image (between top row and mid row)
+// Vertical corridor: x ~35% and x ~65% (between left/center and center/right)
+const HALL_TOP = p(50, 30);      // Top of central vertical corridor
+const HALL_MID = p(50, 50);      // Center junction (meeting room level)
+const HALL_BOT = p(50, 75);      // Bottom of central vertical corridor
+const HALL_LEFT_TOP = p(32, 30); // Left corridor junction (top)
+const HALL_LEFT_MID = p(32, 50); // Left corridor junction (mid)
+const HALL_LEFT_BOT = p(32, 75); // Left corridor junction (bottom)
+const HALL_RIGHT_TOP = p(67, 30); // Right corridor junction (top)
+const HALL_RIGHT_MID = p(67, 50); // Right corridor junction (mid)
+const HALL_RIGHT_BOT = p(67, 75); // Right corridor junction (bottom)
+
+// Path from entrance to each zone's gate (array of waypoints to walk through)
+const ZONE_PATHS: Record<number, Array<{ x: number; y: number }>> = {
+  // Planning (desks 0-3): entrance → top → left
+  0: [HALL_TOP, HALL_LEFT_TOP],
+  1: [HALL_TOP, HALL_LEFT_TOP],
+  2: [HALL_TOP, HALL_LEFT_TOP],
+  3: [HALL_TOP, HALL_LEFT_TOP],
+  // Development (desks 4-7): entrance → top (already there)
+  4: [HALL_TOP],
+  5: [HALL_TOP],
+  6: [HALL_TOP],
+  7: [HALL_TOP],
+  // QA & Security (desks 8-11): entrance → top → right
+  8: [HALL_TOP, HALL_RIGHT_TOP],
+  9: [HALL_TOP, HALL_RIGHT_TOP],
+  10: [HALL_TOP, HALL_RIGHT_TOP],
+  11: [HALL_TOP, HALL_RIGHT_TOP],
+  // Data (desks 12-15): entrance → top → left → left-mid
+  12: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID],
+  13: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID],
+  14: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID],
+  15: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID],
+  // Meeting (desks 16-19): entrance → mid
+  16: [HALL_TOP, HALL_MID],
+  17: [HALL_TOP, HALL_MID],
+  18: [HALL_TOP, HALL_MID],
+  19: [HALL_TOP, HALL_MID],
+  // Automation (desks 20-23): entrance → top → right → right-mid
+  20: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID],
+  21: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID],
+  22: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID],
+  23: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID],
+  // Research (desks 24-27): entrance → top → left → left-mid → left-bot
+  24: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID, HALL_LEFT_BOT],
+  25: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID, HALL_LEFT_BOT],
+  26: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID, HALL_LEFT_BOT],
+  27: [HALL_TOP, HALL_LEFT_TOP, HALL_LEFT_MID, HALL_LEFT_BOT],
+  // Operations (desks 28-31): entrance → mid → bot
+  28: [HALL_TOP, HALL_MID, HALL_BOT],
+  29: [HALL_TOP, HALL_MID, HALL_BOT],
+  30: [HALL_TOP, HALL_MID, HALL_BOT],
+  31: [HALL_TOP, HALL_MID, HALL_BOT],
+  // Support (desks 32-35): entrance → top → right → right-mid → right-bot
+  32: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID, HALL_RIGHT_BOT],
+  33: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID, HALL_RIGHT_BOT],
+  34: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID, HALL_RIGHT_BOT],
+  35: [HALL_TOP, HALL_RIGHT_TOP, HALL_RIGHT_MID, HALL_RIGHT_BOT],
+};
+
 const AVATAR_COLORS = ["#22c55e", "#6366f1", "#3b82f6", "#a855f7", "#06b6d4", "#f97316", "#ec4899", "#eab308"];
 
 export default function RealisticOfficeView() {
@@ -83,6 +147,7 @@ export default function RealisticOfficeView() {
         id: agent.agentId,
         name: agent.name,
         desk,
+        deskIdx: i % DESK_POSITIONS.length,
         color,
         status: agent.status,
         isWorking: agent.status === "working",
@@ -147,11 +212,12 @@ export default function RealisticOfficeView() {
         <AgentSprite
           key={agent.id}
           desk={agent.desk}
+          path={ZONE_PATHS[agent.deskIdx] ?? []}
           color={agent.color}
           name={agent.name}
           isWorking={agent.isWorking}
           status={agent.status}
-          delay={i * 0.4}
+          delay={i * 0.8}
           noAnimation={reducedMotion.current}
           palette={agent.palette}
         />
@@ -172,22 +238,37 @@ export default function RealisticOfficeView() {
   );
 }
 
-// ─── Agent Sprite (uses PixiJS pixel character) ───
-function AgentSprite({ desk, color, name, isWorking, status, delay, noAnimation, palette }: {
-  desk: { x: number; y: number }; color: string; name: string;
+// ─── Agent Sprite (uses PixiJS pixel character + waypoint walking) ───
+function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnimation, palette }: {
+  desk: { x: number; y: number }; path: Array<{ x: number; y: number }>;
+  color: string; name: string;
   isWorking: boolean; status: string; delay: number; noAnimation: boolean; palette: number;
 }) {
-  const [arrived, setArrived] = useState(noAnimation);
+  // Full path: entrance → waypoints → desk
+  const fullPath = [ENTRANCE, ...path, desk];
+  const [step, setStep] = useState(noAnimation ? fullPath.length - 1 : 0);
   const [hovered, setHovered] = useState(false);
 
+  // Walk through waypoints one by one
   useEffect(() => {
-    if (noAnimation) return;
-    const t = setTimeout(() => setArrived(true), delay * 1000 + 50);
-    return () => clearTimeout(t);
-  }, [delay, noAnimation]);
+    if (noAnimation) { setStep(fullPath.length - 1); return; }
+    let current = 0;
+    const startDelay = setTimeout(() => {
+      const interval = setInterval(() => {
+        current++;
+        if (current >= fullPath.length - 1) {
+          setStep(fullPath.length - 1);
+          clearInterval(interval);
+        } else {
+          setStep(current);
+        }
+      }, 600); // 600ms per waypoint segment
+      return () => clearInterval(interval);
+    }, delay * 1000);
+    return () => clearTimeout(startDelay);
+  }, [noAnimation, delay, fullPath.length]);
 
-  const x = arrived ? desk.x : ENTRANCE.x;
-  const y = arrived ? desk.y : ENTRANCE.y;
+  const pos = fullPath[step] ?? desk;
 
   return (
     <div
@@ -195,9 +276,9 @@ function AgentSprite({ desk, color, name, isWorking, status, delay, noAnimation,
       onMouseLeave={() => setHovered(false)}
       style={{
         position: "absolute",
-        left: `${x}%`, top: `${y}%`,
+        left: `${pos.x}%`, top: `${pos.y}%`,
         transform: "translate(-50%, -100%)",
-        transition: noAnimation ? "none" : `left ${1.2 + delay * 0.2}s ease-out, top ${1.2 + delay * 0.2}s ease-out`,
+        transition: noAnimation ? "none" : "left 0.6s linear, top 0.6s linear",
         cursor: "pointer", zIndex: 10,
       }}
     >
