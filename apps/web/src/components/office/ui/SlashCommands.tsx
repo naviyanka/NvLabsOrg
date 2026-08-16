@@ -1,17 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOfficeStore } from "@/store/office-store";
 
 export interface SlashCommand {
   command: string;
   description: string;
   category: string;
-  /** If provided, this arg hint is shown after the command name */
   argHint?: string;
 }
 
-/** Fallback commands used before gateway responds with LIST_COMMANDS */
+/** Fallback commands used before gateway responds */
 const FALLBACK_COMMANDS: SlashCommand[] = [
   { command: "/cancel", description: "Cancel the current task", category: "Agent" },
   { command: "/fire", description: "Fire this agent", category: "Agent" },
@@ -34,23 +33,17 @@ const FALLBACK_COMMANDS: SlashCommand[] = [
   { command: "/metrics", description: "Open metrics panel", category: "Info" },
 ];
 
-interface SlashCommandMenuProps {
-  query: string; // text after /
-  onSelect: (command: SlashCommand) => void;
-  onClose: () => void;
-  visible: boolean;
-}
-
 /**
- * Autocomplete menu that appears above the chat input when user types /
+ * Hook that manages slash command menu state.
+ * Returns: { menuVisible, selectedIdx, filtered, handleKeyDown, selectCurrent, menuElement }
  */
-export function SlashCommandMenu({ query, onSelect, onClose, visible }: SlashCommandMenuProps) {
+export function useSlashMenu(prompt: string, onSelect: (cmd: SlashCommand) => void) {
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const menuRef = useRef<HTMLDivElement>(null);
   const storeCommands = useOfficeStore((s) => s.slashCommands);
-
-  // Use gateway-provided commands if available, otherwise fallback
   const commands: SlashCommand[] = storeCommands.length > 0 ? storeCommands : FALLBACK_COMMANDS;
+
+  const menuVisible = prompt.startsWith("/") && !prompt.includes(" ") && prompt.length >= 1;
+  const query = prompt.slice(1); // text after /
 
   const filtered = useMemo(() => {
     if (!query) return commands;
@@ -61,31 +54,52 @@ export function SlashCommandMenu({ query, onSelect, onClose, visible }: SlashCom
   }, [query, commands]);
 
   // Reset selection when filter changes
-  useEffect(() => { setSelectedIdx(0); }, [filtered]);
+  useEffect(() => { setSelectedIdx(0); }, [filtered.length, query]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!visible) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIdx(i => Math.min(i + 1, filtered.length - 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIdx(i => Math.max(i - 1, 0));
-      } else if (e.key === "Enter" || e.key === "Tab") {
-        if (filtered.length > 0) {
-          e.preventDefault();
-          onSelect(filtered[selectedIdx]);
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [visible, filtered, selectedIdx, onSelect, onClose]);
+  /**
+   * Call this from the textarea's onKeyDown.
+   * Returns true if the event was consumed (caller should preventDefault + stop).
+   */
+  const handleKeyDown = useCallback((e: React.KeyboardEvent): boolean => {
+    if (!menuVisible || filtered.length === 0) return false;
+
+    if (e.key === "ArrowDown") {
+      setSelectedIdx(i => Math.min(i + 1, filtered.length - 1));
+      return true;
+    }
+    if (e.key === "ArrowUp") {
+      setSelectedIdx(i => Math.max(i - 1, 0));
+      return true;
+    }
+    if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+      onSelect(filtered[selectedIdx]);
+      return true;
+    }
+    if (e.key === "Escape") {
+      return true; // just close — parent can handle
+    }
+    return false;
+  }, [menuVisible, filtered, selectedIdx, onSelect]);
+
+  return { menuVisible, selectedIdx, filtered, handleKeyDown };
+}
+
+/**
+ * SlashCommandMenu — renders the autocomplete popup.
+ * Controlled entirely by the parent via useSlashMenu() hook.
+ */
+export function SlashCommandMenu({
+  visible,
+  filtered,
+  selectedIdx,
+  onSelect,
+}: {
+  visible: boolean;
+  filtered: SlashCommand[];
+  selectedIdx: number;
+  onSelect: (cmd: SlashCommand) => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Scroll selected into view
   useEffect(() => {
@@ -137,7 +151,6 @@ export function SlashCommandMenu({ query, onSelect, onClose, visible }: SlashCom
             <div
               data-idx={idx}
               onClick={() => onSelect(cmd)}
-              onMouseEnter={() => setSelectedIdx(idx)}
               style={{
                 padding: "6px 12px",
                 display: "flex",
@@ -176,7 +189,6 @@ export function SlashCommandMenu({ query, onSelect, onClose, visible }: SlashCom
 
 /**
  * Parse a slash command from input text.
- * Returns the command + args if it starts with /, otherwise null.
  */
 export function parseSlashCommand(input: string): { command: string; args: string } | null {
   const trimmed = input.trim();

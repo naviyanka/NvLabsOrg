@@ -7,7 +7,7 @@ import { SysMsg, TokenBadge, MdContent } from "./MessageBubble";
 import { TermButton, TermInput, TermEmpty } from "./primitives";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CostBadge } from "./CostEstimator";
-import { SlashCommandMenu, parseSlashCommand, type SlashCommand } from "./SlashCommands";
+import { SlashCommandMenu, useSlashMenu, type SlashCommand } from "./SlashCommands";
 
 /** Export an agent's conversation as a Markdown file download */
 function exportChatAsMarkdown(agentName: string, messages: Array<{ role: string; text: string; timestamp: number }>) {
@@ -517,6 +517,16 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
       inputRef.current.style.height = "auto";
     }
   }, [prompt]);
+
+  // Slash command menu
+  const slashMenu = useSlashMenu(prompt, (cmd: SlashCommand) => {
+    if (cmd.argHint) {
+      onPromptChange(cmd.command + " ");
+    } else {
+      onPromptChange(cmd.command);
+      setTimeout(() => onSubmit(), 0);
+    }
+  });
 
   // ── Scroll-away detection for "new messages" pill ──
   const [scrolledAway, setScrolledAway] = useState(false);
@@ -1041,21 +1051,19 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
             return (
               <div className="term-input-area px-3 py-2 bg-term-panel shrink-0" style={{ position: "relative" }}>
                 {/* Slash command autocomplete */}
-                {prompt.startsWith("/") && !busy && (
+                {slashMenu.menuVisible && !busy && (
                   <SlashCommandMenu
-                    query={prompt.slice(1).split(" ")[0]}
-                    visible={prompt.startsWith("/") && !prompt.includes(" ")}
+                    visible={slashMenu.menuVisible && !busy}
+                    filtered={slashMenu.filtered}
+                    selectedIdx={slashMenu.selectedIdx}
                     onSelect={(cmd: SlashCommand) => {
-                      // Commands that need args: fill the prompt with the command
                       if (cmd.argHint) {
                         onPromptChange(cmd.command + " ");
                       } else {
-                        // Execute immediately
                         onPromptChange(cmd.command);
                         setTimeout(() => onSubmit(), 0);
                       }
                     }}
-                    onClose={() => {/* user pressed Escape — handled by input keydown */}}
                   />
                 )}
                 {isTeamMember ? (
@@ -1075,15 +1083,10 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                         onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
                         onKeyDown={(e) => {
                           if (e.key === "Escape" && busy) { onCancel(); return; }
-                          // If slash command menu is visible, let it handle navigation keys
-                          const slashMenuOpen = prompt.startsWith("/") && !prompt.includes(" ") && !busy;
-                          if (slashMenuOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab")) {
+                          // Let slash menu handle navigation/selection keys
+                          if (!busy && slashMenu.handleKeyDown(e)) {
                             e.preventDefault();
-                            return; // handled by SlashCommandMenu's document listener
-                          }
-                          if (slashMenuOpen && e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            return; // handled by SlashCommandMenu's document listener
+                            return;
                           }
                           if (isRealEnter(e)) { e.preventDefault(); onSubmit(); }
                         }}
