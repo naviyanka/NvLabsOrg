@@ -72,20 +72,30 @@ export default function RealisticOfficeView() {
   }, [agents]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 420, borderRadius: 10, overflow: "hidden", background: "#0a0c14" }}>
-      {/* Background Image */}
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 380, borderRadius: 10, overflow: "hidden", background: "#080a10" }}>
+      {/* Background Image — fills edge to edge */}
       <img
         src="/offices/realistic-office.png"
-        alt="Realistic isometric office"
-        style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center", position: "absolute", inset: 0, background: "#0a0c14" }}
+        alt="Office floor plan"
+        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
         onError={(e) => {
           (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg";
-          (e.target as HTMLImageElement).style.objectFit = "cover";
         }}
       />
 
-      {/* Ambient light overlay */}
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.3) 100%)", pointerEvents: "none" }} />
+      {/* Vignette overlay */}
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%)", pointerEvents: "none" }} />
+
+      {/* Zone name labels (floating on the image) */}
+      <ZoneLabel name="Planning Zone" color="#a855f7" top="8%" left="16%" />
+      <ZoneLabel name="Development Zone" color="#22c55e" top="8%" left="44%" />
+      <ZoneLabel name="QA & Security Zone" color="#f97316" top="8%" left="74%" />
+      <ZoneLabel name="Data Zone" color="#06b6d4" top="38%" left="16%" />
+      <ZoneLabel name="Meeting Area" color="#eab308" top="38%" left="44%" />
+      <ZoneLabel name="Automation Zone" color="#3b82f6" top="38%" left="74%" />
+      <ZoneLabel name="Research Zone" color="#ec4899" top="68%" left="16%" />
+      <ZoneLabel name="Operations Zone" color="#84cc16" top="68%" left="44%" />
+      <ZoneLabel name="Support Zone" color="#14b8a6" top="68%" left="74%" />
 
       {/* Zone hover areas (invisible interaction layer) */}
       {ZONES.map(zone => {
@@ -234,6 +244,24 @@ function AgentAvatar({ x, y, color, name, status, isWorking, delay, reducedMotio
           <span style={{ marginLeft: 4, fontSize: 8, color, textTransform: "capitalize" }}>● {status}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ─── Zone Label ───
+function ZoneLabel({ name, color, top, left }: { name: string; color: string; top: string; left: string }) {
+  return (
+    <div style={{
+      position: "absolute", top, left, transform: "translateX(-50%)",
+      padding: "3px 10px", borderRadius: 4,
+      background: `${color}40`, border: `1px solid ${color}80`,
+      fontSize: 9, fontWeight: 600, color,
+      whiteSpace: "nowrap", pointerEvents: "none",
+      boxShadow: `0 0 10px ${color}30`,
+      letterSpacing: "0.02em",
+    }}>
+      {name}
     </div>
   );
 }
