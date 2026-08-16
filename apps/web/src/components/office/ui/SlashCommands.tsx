@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useOfficeStore } from "@/store/office-store";
 
 export interface SlashCommand {
@@ -60,15 +60,15 @@ export function useSlashMenu(prompt: string, onSelect: (cmd: SlashCommand) => vo
    * Call this from the textarea's onKeyDown.
    * Returns true if the event was consumed (caller should preventDefault + stop).
    */
-  const handleKeyDown = useCallback((e: React.KeyboardEvent): boolean => {
+  const handleKeyDown = (e: React.KeyboardEvent): boolean => {
     if (!menuVisible || filtered.length === 0) return false;
 
     if (e.key === "ArrowDown") {
-      setSelectedIdx(i => Math.min(i + 1, filtered.length - 1));
+      setSelectedIdx(prev => Math.min(prev + 1, filtered.length - 1));
       return true;
     }
     if (e.key === "ArrowUp") {
-      setSelectedIdx(i => Math.max(i - 1, 0));
+      setSelectedIdx(prev => Math.max(prev - 1, 0));
       return true;
     }
     if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
@@ -76,10 +76,10 @@ export function useSlashMenu(prompt: string, onSelect: (cmd: SlashCommand) => vo
       return true;
     }
     if (e.key === "Escape") {
-      return true; // just close — parent can handle
+      return true;
     }
     return false;
-  }, [menuVisible, filtered, selectedIdx, onSelect]);
+  };
 
   return { menuVisible, selectedIdx, filtered, handleKeyDown };
 }
