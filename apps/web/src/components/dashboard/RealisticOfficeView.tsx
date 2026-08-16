@@ -104,7 +104,7 @@ export default function RealisticOfficeView() {
         src="/offices/realistic-office.png"
         alt="Office"
         draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "115%", objectFit: "cover", objectPosition: "top center", display: "block" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "108%", objectFit: "cover", objectPosition: "top center", display: "block" }}
         onError={(e) => { (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg"; }}
       />
 
