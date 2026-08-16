@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useOfficeStore } from "@/store/office-store";
+import dynamic from "next/dynamic";
+
+const SpriteAvatar = dynamic(() => import("@/components/office/ui/SpriteAvatar"), { ssr: false });
 
 /**
  * Realistic Office View
@@ -26,7 +29,7 @@ const p = (x: number, iy: number) => ({ x, y: IMG_TOP + iy * IMG_SCALE });
 // Desk positions in container coordinates
 const DESK_POSITIONS = [
   // Top-left room (Planning)
-  p(16.5, 19), p(19, 19), p(16, 28.5), p(19, 28.5),
+  p(20.5, -8), p(29.8, -7.8), p(16, 28.5), p(19, 28.5),
   // Top-center room (Development)
   p(44, 19), p(47, 19), p(44, 28), p(47, 28),
   // Top-right room (QA & Security)
@@ -83,6 +86,7 @@ export default function RealisticOfficeView() {
         color,
         status: agent.status,
         isWorking: agent.status === "working",
+        palette: agent.palette ?? (i % AVATAR_COLORS.length),
       };
     });
   }, [agents]);
@@ -96,7 +100,7 @@ export default function RealisticOfficeView() {
       background: "#080a10",
     }}>
       {/* Container — crops bottom dark bar */}
-      <div style={{ position: "relative", width: "100%", paddingBottom: "60%" }}>
+      <div style={{ position: "relative", width: "100%", paddingBottom: "58%" }}>
         <div style={{ position: "absolute", inset: 0 }}>
 
       {/* Background — cover from top, trims dark floor */}
@@ -104,7 +108,7 @@ export default function RealisticOfficeView() {
         src="/offices/realistic-office.png"
         alt="Office"
         draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "106%", objectFit: "cover", objectPosition: "center", display: "block" }}
         onError={(e) => { (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg"; }}
       />
 
@@ -149,6 +153,7 @@ export default function RealisticOfficeView() {
           status={agent.status}
           delay={i * 0.4}
           noAnimation={reducedMotion.current}
+          palette={agent.palette}
         />
       ))}
 
@@ -167,10 +172,10 @@ export default function RealisticOfficeView() {
   );
 }
 
-// ─── Agent Sprite ───
-function AgentSprite({ desk, color, name, isWorking, status, delay, noAnimation }: {
+// ─── Agent Sprite (uses PixiJS pixel character) ───
+function AgentSprite({ desk, color, name, isWorking, status, delay, noAnimation, palette }: {
   desk: { x: number; y: number }; color: string; name: string;
-  isWorking: boolean; status: string; delay: number; noAnimation: boolean;
+  isWorking: boolean; status: string; delay: number; noAnimation: boolean; palette: number;
 }) {
   const [arrived, setArrived] = useState(noAnimation);
   const [hovered, setHovered] = useState(false);
@@ -191,24 +196,32 @@ function AgentSprite({ desk, color, name, isWorking, status, delay, noAnimation 
       style={{
         position: "absolute",
         left: `${x}%`, top: `${y}%`,
-        transform: "translate(-50%, -50%)",
-        transition: noAnimation ? "none" : `left ${1 + delay * 0.15}s ease, top ${1 + delay * 0.15}s ease`,
+        transform: "translate(-50%, -100%)",
+        transition: noAnimation ? "none" : `left ${1.2 + delay * 0.2}s ease-out, top ${1.2 + delay * 0.2}s ease-out`,
         cursor: "pointer", zIndex: 10,
       }}
     >
-      {/* Glow base */}
+      {/* Pixel character sprite */}
       <div style={{
-        width: isWorking ? 14 : 10, height: isWorking ? 14 : 10,
-        borderRadius: "50%", background: color,
-        boxShadow: `0 0 ${isWorking ? 12 : 6}px ${color}, 0 0 ${isWorking ? 24 : 12}px ${color}50`,
-        animation: isWorking ? "agent-breathe 2s ease-in-out infinite" : "none",
-        border: "2px solid rgba(0,0,0,0.4)",
+        filter: isWorking ? `drop-shadow(0 0 4px ${color})` : "none",
+        animation: isWorking ? "agent-bob 1.5s ease-in-out infinite" : "none",
+        opacity: status === "error" ? 0.4 : 1,
+      }}>
+        <SpriteAvatar palette={palette} zoom={2} ready />
+      </div>
+
+      {/* Status dot under character */}
+      <div style={{
+        position: "absolute", bottom: -4, left: "50%", transform: "translateX(-50%)",
+        width: 6, height: 6, borderRadius: "50%",
+        background: color,
+        boxShadow: `0 0 6px ${color}`,
       }} />
 
       {/* Name tooltip */}
       {hovered && (
         <div style={{
-          position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+          position: "absolute", bottom: "calc(100% + 4px)", left: "50%", transform: "translateX(-50%)",
           padding: "3px 8px", borderRadius: 4,
           background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)",
           border: `1px solid ${color}60`,
