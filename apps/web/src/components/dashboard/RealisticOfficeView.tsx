@@ -89,8 +89,8 @@ export default function RealisticOfficeView() {
       overflow: "hidden",
       background: "#080a10",
     }}>
-      {/* Aspect ratio wrapper — square */}
-      <div style={{ position: "relative", width: "100%", paddingBottom: "100%" }}>
+      {/* Aspect ratio wrapper — matches image (3:2) so whole image is visible */}
+      <div style={{ position: "relative", width: "100%", paddingBottom: `${(1 / IMAGE_ASPECT) * 100}%` }}>
         <div style={{ position: "absolute", inset: 0 }}>
 
       {/* Background — fills exactly, no crop, no gap */}
@@ -98,7 +98,7 @@ export default function RealisticOfficeView() {
         src="/offices/realistic-office.png"
         alt="Office"
         draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block" }}
         onError={(e) => { (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg"; }}
       />
 
