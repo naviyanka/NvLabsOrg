@@ -9,14 +9,19 @@ import QuickActions from "./QuickActions";
 import RecentTasks from "./RecentTasks";
 import TopAgents from "./TopAgents";
 import TokenCostChart from "./TokenCostChart";
+import OfficePage from "./OfficePage";
 
 interface DashboardContentProps {
   activeNav: NavSection;
 }
 
 export default function DashboardContent({ activeNav }: DashboardContentProps) {
-  // For now, all nav items show the Overview dashboard
-  // Later phases will add dedicated views for each section
+  // Office page
+  if (activeNav === "office") {
+    return <main className="v2-main"><OfficePage /></main>;
+  }
+
+  // Default: Overview dashboard
   return (
     <main className="v2-main">
       {/* Page Header */}
