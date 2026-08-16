@@ -9,7 +9,7 @@ import RealisticAvatar from "./RealisticAvatar";
 
 // Realistic character spritesheets (palette index → path)
 const REALISTIC_SPRITES: Record<number, string> = {
-  6: "/assets/characters/realistic_secretary.png",
+  6: "/assets/characters/char_6.png",
 };
 
 // Load character sprite assets (needed for SpriteAvatar to render)

@@ -16,7 +16,7 @@ const PNG_ALPHA_THRESHOLD = 128
 const CHAR_FRAME_W = 16
 const CHAR_FRAME_H = 32
 const CHAR_FRAMES_PER_ROW = 7
-const CHAR_COUNT = 7
+const CHAR_COUNT = 6
 const CHAR_DIRECTIONS = ['down', 'up', 'right'] as const
 
 // Wall sprite sheet: 64×128 (4×4 grid of 16×32 pieces)
