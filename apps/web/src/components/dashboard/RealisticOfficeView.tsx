@@ -5,6 +5,12 @@ import { useOfficeStore } from "@/store/office-store";
 import dynamic from "next/dynamic";
 
 const SpriteAvatar = dynamic(() => import("@/components/office/ui/SpriteAvatar"), { ssr: false });
+import RealisticAvatar from "./RealisticAvatar";
+
+// Realistic character spritesheets (palette index → path)
+const REALISTIC_SPRITES: Record<number, string> = {
+  6: "/assets/characters/realistic_secretary.png",
+};
 
 // Load character sprite assets (needed for SpriteAvatar to render)
 let assetsLoaded = false;
@@ -336,13 +342,22 @@ function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnim
         cursor: "pointer", zIndex: 10,
       }}
     >
-      {/* Pixel character sprite */}
+      {/* Character sprite — realistic or pixel depending on palette */}
       <div style={{
         filter: isWorking ? `drop-shadow(0 0 4px ${color})` : "none",
         animation: isWorking ? "agent-bob 1.5s ease-in-out infinite" : "none",
         opacity: status === "error" ? 0.4 : 1,
       }}>
-        <SpriteAvatar palette={palette} zoom={2} ready={spritesReady} />
+        {REALISTIC_SPRITES[palette] ? (
+          <RealisticAvatar
+            src={REALISTIC_SPRITES[palette]}
+            direction={0}
+            walking={step < fullPath.length - 1}
+            size={48}
+          />
+        ) : (
+          <SpriteAvatar palette={palette} zoom={2} ready={spritesReady} />
+        )}
       </div>
 
       {/* Status dot under character */}
