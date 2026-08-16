@@ -15,43 +15,50 @@ import { useOfficeStore } from "@/store/office-store";
 
 const IMAGE_ASPECT = 1536 / 1024; // 3:2
 
-// Desk positions (percentage of image width/height)
-// Mapped to the 3x3 room grid visible in the reference image
+// Image occupies: x=0-100%, y=16.7%-83.3% when contained in a square
+// To convert image-relative % to container-relative %: containerY = IMG_TOP + (imageY * IMG_SCALE)
+const IMG_TOP = 16.7;
+const IMG_SCALE = 0.667;
+
+// Helper to convert image-space coords to container-space
+const p = (x: number, iy: number) => ({ x, y: IMG_TOP + iy * IMG_SCALE });
+
+// Desk positions in container coordinates
 const DESK_POSITIONS = [
-  // Top-left room
-  { x: 12, y: 18 }, { x: 19, y: 18 }, { x: 12, y: 26 }, { x: 19, y: 26 },
-  // Top-center room
-  { x: 40, y: 18 }, { x: 47, y: 18 }, { x: 40, y: 26 }, { x: 47, y: 26 },
-  // Top-right room
-  { x: 68, y: 18 }, { x: 75, y: 18 }, { x: 68, y: 26 }, { x: 75, y: 26 },
-  // Mid-left room
-  { x: 12, y: 46 }, { x: 19, y: 46 }, { x: 12, y: 54 }, { x: 19, y: 54 },
-  // Center (meeting room — round table seats)
-  { x: 43, y: 46 }, { x: 50, y: 43 }, { x: 55, y: 48 }, { x: 48, y: 53 },
-  // Mid-right room
-  { x: 68, y: 46 }, { x: 75, y: 46 }, { x: 68, y: 54 }, { x: 75, y: 54 },
-  // Bottom-left room
-  { x: 12, y: 74 }, { x: 19, y: 74 }, { x: 12, y: 82 }, { x: 19, y: 82 },
-  // Bottom-center room
-  { x: 40, y: 74 }, { x: 47, y: 74 }, { x: 40, y: 82 }, { x: 47, y: 82 },
-  // Bottom-right room
-  { x: 68, y: 74 }, { x: 75, y: 74 }, { x: 68, y: 82 }, { x: 75, y: 82 },
+  // Top-left room (Planning)
+  p(12, 18), p(19, 18), p(12, 28), p(19, 28),
+  // Top-center room (Development)
+  p(40, 18), p(47, 18), p(40, 28), p(47, 28),
+  // Top-right room (QA & Security)
+  p(68, 18), p(78, 18), p(68, 28), p(78, 28),
+  // Mid-left room (Data)
+  p(12, 50), p(19, 50), p(12, 60), p(19, 60),
+  // Center (Meeting room)
+  p(43, 48), p(50, 45), p(55, 52), p(48, 55),
+  // Mid-right room (Automation)
+  p(68, 50), p(78, 50), p(68, 60), p(78, 60),
+  // Bottom-left room (Research)
+  p(12, 78), p(19, 78), p(12, 88), p(19, 88),
+  // Bottom-center room (Operations)
+  p(40, 78), p(47, 78), p(40, 88), p(47, 88),
+  // Bottom-right room (Support)
+  p(68, 78), p(78, 78), p(68, 88), p(78, 88),
 ];
 
-// Zone labels
+// Zone labels in container coordinates
 const ZONE_LABELS = [
-  { name: "Planning Zone", x: 15, y: 11, color: "#a855f7" },
-  { name: "Development Zone", x: 44, y: 11, color: "#22c55e" },
-  { name: "QA & Security Zone", x: 72, y: 11, color: "#f97316" },
-  { name: "Data Zone", x: 15, y: 39, color: "#06b6d4" },
-  { name: "Meeting Area", x: 49, y: 39, color: "#eab308" },
-  { name: "Automation Zone", x: 72, y: 39, color: "#3b82f6" },
-  { name: "Research Zone", x: 15, y: 67, color: "#ec4899" },
-  { name: "Operations Zone", x: 44, y: 67, color: "#84cc16" },
-  { name: "Support Zone", x: 72, y: 67, color: "#14b8a6" },
+  { name: "Planning Zone", x: 15, y: IMG_TOP + 5 * IMG_SCALE, color: "#a855f7" },
+  { name: "Development Zone", x: 44, y: IMG_TOP + 5 * IMG_SCALE, color: "#22c55e" },
+  { name: "QA & Security Zone", x: 75, y: IMG_TOP + 5 * IMG_SCALE, color: "#f97316" },
+  { name: "Data Zone", x: 15, y: IMG_TOP + 42 * IMG_SCALE, color: "#06b6d4" },
+  { name: "Meeting Area", x: 49, y: IMG_TOP + 42 * IMG_SCALE, color: "#eab308" },
+  { name: "Automation Zone", x: 75, y: IMG_TOP + 42 * IMG_SCALE, color: "#3b82f6" },
+  { name: "Research Zone", x: 15, y: IMG_TOP + 78 * IMG_SCALE, color: "#ec4899" },
+  { name: "Operations Zone", x: 44, y: IMG_TOP + 78 * IMG_SCALE, color: "#84cc16" },
+  { name: "Support Zone", x: 75, y: IMG_TOP + 78 * IMG_SCALE, color: "#14b8a6" },
 ];
 
-const ENTRANCE = { x: 50, y: 3 };
+const ENTRANCE = { x: 50, y: IMG_TOP };
 const AVATAR_COLORS = ["#22c55e", "#6366f1", "#3b82f6", "#a855f7", "#06b6d4", "#f97316", "#ec4899", "#eab308"];
 
 export default function RealisticOfficeView() {
