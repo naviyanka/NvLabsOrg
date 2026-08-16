@@ -11,6 +11,7 @@ import { RetryTracker } from "./retry.js";
 import { PhaseMachine } from "./phase-machine.js";
 import { finalizeTeamResult } from "./result-finalizer.js";
 import { recordReviewFeedback, recordProjectCompletion, recordTechPreference, getMemoryContext } from "./memory.js";
+import { recordTaskSuccess, recordTaskFailure } from "./metrics.js";
 import { createWorktree, getManagedWorktreeBranch, mergeWorktree, removeWorktree, revertWorktreeCommit, worktreeHasPendingChanges, syncWorktreeToMain, undoMergeCommit, resetWorktreeToMain, isGitRepo, initGitRepo } from "./worktree.js";
 import type { AIBackend } from "./ai-backend.js";
 import type { TeamPreview } from "./result-finalizer.js";
@@ -268,7 +269,7 @@ export class Orchestrator extends EventEmitter<OrchestratorEventMap> {
     // Worktree isolation: create a branch for each non-leader, non-reviewer agent.
     // When worktree is disabled, agents work directly in the designated directory on the current branch.
     // NOTE: Claude Code's native --worktree flag is incompatible with -p and --resume
-    // (causes exit code 1). All backends use managed worktrees (~/.open-office[-dev]/worktrees/) instead.
+    // (causes exit code 1). All backends use managed worktrees (~/.nvlabs-org[-dev]/worktrees/) instead.
     this.setupWorktreeForAgent(agentId, taskId, repoPath ?? session.workspaceDir);
 
     session.runTask(taskId, prompt, repoPath, teamContext, true /* isUserInitiated */, opts?.phaseOverride);
@@ -896,6 +897,28 @@ export class Orchestrator extends EventEmitter<OrchestratorEventMap> {
         }
       }
       this.retryTracker.clear(taskId);
+    }
+
+    // ── Metrics: record task success/failure ──
+    if (event.type === "task:done") {
+      const session = this.agentManager.get(agentId);
+      if (session) {
+        const tokens = event.result?.tokenUsage;
+        recordTaskSuccess(
+          agentId,
+          session.name,
+          session.backend.id,
+          0, // duration computed client-side; server doesn't track start time per task
+          tokens?.inputTokens ?? 0,
+          tokens?.outputTokens ?? 0,
+        );
+      }
+    }
+    if (event.type === "task:failed") {
+      const session = this.agentManager.get(agentId);
+      if (session) {
+        recordTaskFailure(agentId, session.name, session.backend.id);
+      }
     }
 
     // ── Memory: record reviewer feedback for learning ──

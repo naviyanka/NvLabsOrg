@@ -1,6 +1,6 @@
 /**
  * Persist team state to disk so gateway restarts don't lose agents/team/phase.
- * File: ~/.open-office[-dev]/data/instances/{id}/team-state.json
+ * File: ~/.nvlabs-org[-dev]/data/instances/{id}/team-state.json
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, readdirSync } from "fs";
 import path from "path";

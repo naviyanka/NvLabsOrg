@@ -81,10 +81,14 @@ export async function initTransports(commandHandler: (cmd: Command, meta: Comman
 }
 
 /** Broadcast event to all active channels */
+import { notifyWebhooks } from "./webhook-notifier.js";
+
 export function publishEvent(event: GatewayEvent) {
   for (const ch of channels) {
     ch.broadcast(event);
   }
+  // Fire webhooks (non-blocking, errors logged internally)
+  notifyWebhooks(event);
 }
 
 /** Destroy all channels on shutdown */

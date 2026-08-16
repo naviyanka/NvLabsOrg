@@ -6,6 +6,7 @@ import type { OfficeLayout } from '../types'
 import { sendCommand } from '@/lib/connection'
 import { useOfficeStore } from '@/store/office-store'
 import { APP_VERSION, APP_BUILD_TIME } from '@/lib/appMeta'
+import { TERM_THEMES, applyTermTheme } from '@/components/office/ui/termTheme'
 import TermModal from './primitives/TermModal'
 import TermButton from './primitives/TermButton'
 import TermInput from './primitives/TermInput'
@@ -61,6 +62,32 @@ export default function SettingsModal({
   const [tunnelSaving, setTunnelSaving] = useState(false)
   const [tunnelMessage, setTunnelMessage] = useState<string | null>(null)
   const [showTunnelToken, setShowTunnelToken] = useState(false)
+
+  // AI Backends state
+  const [defaultBackend, setDefaultBackend] = useState('')
+  const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
+  const [backendSaving, setBackendSaving] = useState(false)
+  const [backendMessage, setBackendMessage] = useState<string | null>(null)
+
+  // Agent Permissions state
+  const [sandboxMode, setSandboxMode] = useState<"full" | "safe">("full")
+
+  // Webhooks state
+  const [webhookUrl, setWebhookUrl] = useState('')
+
+  // GitHub state
+  const [ghToken, setGhToken] = useState('')
+  const [ghRemote, setGhRemote] = useState('origin')
+  const [showGhToken, setShowGhToken] = useState(false)
+  const [ghSaving, setGhSaving] = useState(false)
+  const [ghMessage, setGhMessage] = useState<string | null>(null)
+
+  // Theme state
+  const [activeTheme, setActiveTheme] = useState(() => {
+    if (typeof window === "undefined") return "studio"
+    return localStorage.getItem("nvlabs-org-theme") || "studio"
+  })
+
   const configData = useOfficeStore((s) => s.configData)
   const configResult = useOfficeStore((s) => s.configResult)
 
@@ -80,6 +107,11 @@ export default function SettingsModal({
       setTunnelToken(configData.tunnelToken ?? '')
       setTunnelBaseUrl(configData.tunnelBaseUrl ?? '')
       setTunnelRunning(configData.tunnelRunning ?? false)
+      setDefaultBackend(configData.defaultBackend ?? '')
+      setDefaultModels(configData.defaultModels ?? {})
+      setSandboxMode(configData.sandboxMode ?? 'full')
+      setGhToken(configData.githubToken ?? '')
+      setGhRemote(configData.githubRemote ?? 'origin')
     }
   }, [configData])
 
@@ -100,6 +132,18 @@ export default function SettingsModal({
       }
       setTunnelMessage(configResult.tunnelRunning ? 'Tunnel started' : 'Tunnel not running')
       const t = setTimeout(() => setTunnelMessage(null), 5000)
+      return () => clearTimeout(t)
+    }
+    if (configResult && backendSaving) {
+      setBackendSaving(false)
+      setBackendMessage('Saved')
+      const t = setTimeout(() => setBackendMessage(null), 3000)
+      return () => clearTimeout(t)
+    }
+    if (configResult && ghSaving) {
+      setGhSaving(false)
+      setGhMessage('Saved')
+      const t = setTimeout(() => setGhMessage(null), 3000)
       return () => clearTimeout(t)
     }
   }, [configResult])
@@ -146,6 +190,22 @@ export default function SettingsModal({
     })
   }
 
+  const handleSaveBackends = () => {
+    setBackendSaving(true)
+    setBackendMessage(null)
+    sendCommand({
+      type: "SAVE_CONFIG",
+      defaultBackend,
+      defaultModels,
+    })
+  }
+
+  const toggleSandboxMode = () => {
+    const next = sandboxMode === 'full' ? 'safe' : 'full'
+    setSandboxMode(next)
+    sendCommand({ type: "SAVE_CONFIG", sandboxMode: next })
+  }
+
   const checkboxCls = (checked: boolean) => cn(
     "w-3.5 h-3.5 border-2 border-muted-foreground rounded-sm shrink-0",
     "flex items-center justify-center text-[11px] leading-none",
@@ -153,6 +213,8 @@ export default function SettingsModal({
   )
 
   const toggleCls = "flex items-center justify-between w-full px-3 py-2 text-term text-foreground bg-transparent border-none cursor-pointer text-left font-mono transition-colors duration-fast hover:bg-white/5"
+
+  const detectedBackends = configData?.detectedBackends ?? []
 
   return (
     <TermModal
@@ -255,7 +317,7 @@ export default function SettingsModal({
       </div>
 
       {/* ---- Toggles ---- */}
-      <div className="mb-1">
+      <div className="border-b border-term-border-dim pb-3 mb-3">
         <button onClick={toggleWorktree} className={toggleCls} title="Each agent works in its own git worktree branch, merged on completion">
           <span>Agent Isolation</span>
           <span className={checkboxCls(worktreeOn)}>{worktreeOn ? '\u2713' : ''}</span>
@@ -270,8 +332,71 @@ export default function SettingsModal({
         </button>
       </div>
 
+      {/* ---- AI Backends Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">AI Backends</span>
+        {detectedBackends.length > 0 ? (
+          <>
+            <div className="mb-2 pl-2">
+              {detectedBackends.map(backend => (
+                <div key={backend} className="flex items-center gap-1.5 text-term text-muted-foreground text-[12px] py-0.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-sem-green shrink-0" />
+                  <span>{backend}</span>
+                </div>
+              ))}
+            </div>
+            <FormRow label="Default">
+              <select
+                value={defaultBackend}
+                onChange={e => setDefaultBackend(e.target.value)}
+                className="w-full bg-transparent border border-term-border-dim rounded px-2 py-1 text-term text-foreground font-mono text-[12px] outline-none focus:border-accent"
+              >
+                <option value="" className="bg-background">-- select --</option>
+                {detectedBackends.map(b => (
+                  <option key={b} value={b} className="bg-background">{b}</option>
+                ))}
+              </select>
+            </FormRow>
+            {detectedBackends.map(backend => (
+              <FormRow key={backend} label={backend} hint="model">
+                <TermInput
+                  type="text"
+                  value={defaultModels[backend] ?? ''}
+                  onChange={e => setDefaultModels(prev => ({ ...prev, [backend]: e.target.value }))}
+                  placeholder={`model for ${backend}`}
+                />
+              </FormRow>
+            ))}
+            <div className="flex items-center gap-2 pl-[112px]">
+              <TermButton variant="primary" onClick={handleSaveBackends} disabled={backendSaving}>
+                {backendSaving ? 'Saving...' : 'Save'}
+              </TermButton>
+              {backendMessage && (
+                <span className="text-term text-sem-green">{backendMessage}</span>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="text-term text-muted-foreground text-[12px] pl-2">No backends detected</div>
+        )}
+      </div>
+
+      {/* ---- Agent Permissions Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">Agent Permissions</span>
+        <button onClick={toggleSandboxMode} className={toggleCls} title="Toggle between full access and sandboxed execution">
+          <span>{sandboxMode === 'full' ? 'Full Access' : 'Sandbox (safe)'}</span>
+          <span className={checkboxCls(sandboxMode === 'safe')}>{sandboxMode === 'safe' ? '\u2713' : ''}</span>
+        </button>
+        <div className="text-[10px] text-muted-foreground pl-3 mt-1 leading-relaxed">
+          {sandboxMode === 'full'
+            ? 'Agents can execute any command and modify any file in the workspace.'
+            : 'Agents run in a restricted sandbox — no destructive commands, no access outside workspace.'}
+        </div>
+      </div>
+
       {/* ---- Console Grid ---- */}
-      <div className="border-b border-term-border-dim pb-3 mb-2">
+      <div className="border-b border-term-border-dim pb-3 mb-3">
         <span className="text-[13px] text-foreground font-medium block mb-2">Console Grid</span>
         <div className="flex items-center gap-4">
           <FormRow label="Columns">
@@ -309,6 +434,274 @@ export default function SettingsModal({
         </div>
         <div className="text-[10px] text-muted-foreground mt-1 pl-[112px]">
           {consoleCols} × {consoleRows} = {consoleCols * consoleRows} agents per page
+        </div>
+      </div>
+
+      {/* ---- Theme Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">Theme</span>
+        <div className="grid grid-cols-4 gap-2 px-2">
+          {Object.entries(TERM_THEMES).map(([key, theme]) => (
+            <button
+              key={key}
+              onClick={() => {
+                setActiveTheme(key)
+                applyTermTheme(key)
+                localStorage.setItem("nvlabs-org-theme", key)
+                // Notify the page component to re-render with new theme
+                window.dispatchEvent(new CustomEvent("theme-changed", { detail: key }))
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1.5 rounded border cursor-pointer transition-all duration-150 text-left",
+                activeTheme === key
+                  ? "border-accent bg-accent/10"
+                  : "border-transparent hover:border-muted-foreground/30 hover:bg-white/[0.03]"
+              )}
+              title={theme.name}
+            >
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  backgroundColor: theme.accent,
+                  boxShadow: activeTheme === key ? `0 0 6px ${theme.accent}60` : "none",
+                }}
+              />
+              <span className={cn(
+                "text-[10px] font-mono truncate",
+                activeTheme === key ? "text-foreground" : "text-muted-foreground"
+              )}>
+                {theme.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ---- Webhooks Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">Webhooks</span>
+        <div className="text-[10px] text-muted-foreground mb-2 pl-2">
+          Receive POST notifications on task events. Configure URLs below.
+        </div>
+        <FormRow label="URL">
+          <div className="flex gap-1">
+            <TermInput
+              type="text"
+              value={webhookUrl}
+              onChange={e => setWebhookUrl(e.target.value)}
+              placeholder="https://example.com/webhook"
+              className="flex-1"
+            />
+            <TermButton
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                if (!webhookUrl.trim()) return;
+                const hooks = [...(configData?.webhooks ?? []), { url: webhookUrl.trim(), events: ["TASK_DONE", "TASK_FAILED"], enabled: true }];
+                sendCommand({ type: "SAVE_CONFIG", webhooks: hooks });
+                setWebhookUrl('');
+              }}
+            >Add</TermButton>
+          </div>
+        </FormRow>
+        {(configData?.webhooks ?? []).length > 0 && (
+          <div className="pl-2 mt-1 space-y-1">
+            {(configData?.webhooks ?? []).map((h, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                <span className={cn("w-2 h-2 rounded-full shrink-0", h.enabled ? "bg-sem-green" : "bg-muted-foreground")} />
+                <span className="flex-1 truncate">{h.url}</span>
+                <span className="opacity-50">{h.events.join(",")}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ---- GitHub Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">GitHub</span>
+        <FormRow label="Token">
+          <div className="flex gap-1">
+            <TermInput
+              type={showGhToken ? 'text' : 'password'}
+              value={ghToken}
+              onChange={e => setGhToken(e.target.value)}
+              placeholder="ghp_..."
+              className="flex-1"
+              onFocus={() => { if (ghToken.includes('...')) setGhToken('') }}
+            />
+            <TermButton
+              variant="dim"
+              size="sm"
+              onClick={() => setShowGhToken(!showGhToken)}
+              title={showGhToken ? 'Hide' : 'Show'}
+            >{showGhToken ? '\u{1F648}' : '\u{1F441}'}</TermButton>
+          </div>
+        </FormRow>
+        <FormRow label="Remote" hint="default: origin">
+          <TermInput
+            type="text"
+            value={ghRemote}
+            onChange={e => setGhRemote(e.target.value)}
+            placeholder="origin"
+          />
+        </FormRow>
+        <div className="flex items-center gap-2 pl-[112px]">
+          <TermButton variant="primary" onClick={() => {
+            setGhSaving(true)
+            setGhMessage(null)
+            sendCommand({
+              type: "SAVE_CONFIG",
+              githubToken: ghToken.includes('...') ? undefined : ghToken,
+              githubRemote: ghRemote || 'origin',
+            })
+          }} disabled={ghSaving}>
+            {ghSaving ? 'Saving...' : 'Save'}
+          </TermButton>
+          <TermButton variant="dim" onClick={() => {
+            sendCommand({ type: "PUSH_BRANCH", remote: ghRemote || 'origin' })
+          }}>Push</TermButton>
+          <TermButton variant="dim" onClick={() => {
+            const title = window.prompt("PR Title:")
+            if (!title) return
+            const body = window.prompt("PR Description (optional):") ?? ""
+            sendCommand({ type: "CREATE_PR", title, body, remote: ghRemote || undefined })
+          }}>Create PR</TermButton>
+          {ghMessage && (
+            <span className="text-term text-sem-green">{ghMessage}</span>
+          )}
+        </div>
+        <div className="text-[10px] text-muted-foreground pl-[112px] mt-1.5">
+          Token is used for git push and GitHub API operations.
+        </div>
+      </div>
+
+      {/* ---- Data & Privacy Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">Data & Privacy</span>
+        <div className="flex flex-wrap items-center gap-2 pl-2">
+          <TermButton variant="dim" onClick={() => {
+            if (confirm("Clear all agent memory? This removes learned patterns and session history. Cannot be undone.")) {
+              sendCommand({ type: "CLEAR_MEMORY" });
+            }
+          }}>
+            Clear Agent Memory
+          </TermButton>
+          <TermButton
+            variant="dim"
+            onClick={() => {
+              if (configData?.dataDir) {
+                alert(`Config is stored at:\n${configData.dataDir}/config.json`)
+              }
+            }}
+            disabled={!configData?.dataDir}
+          >
+            Export Config
+          </TermButton>
+          <TermButton variant="dim" onClick={() => {
+            if (confirm("Reset ALL settings to defaults? This deletes your config (tokens, backends, webhooks). Cannot be undone.")) {
+              sendCommand({ type: "RESET_CONFIG" });
+            }
+          }}>
+            Reset All Settings
+          </TermButton>
+          <TermButton
+            variant="dim"
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new CustomEvent("open-log-viewer"));
+            }}
+          >
+            View Gateway Logs
+          </TermButton>
+          <TermButton
+            variant="dim"
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new CustomEvent("open-metrics"));
+            }}
+          >
+            View Metrics
+          </TermButton>
+        </div>
+        {configData?.dataDir && (
+          <div className="text-[10px] text-muted-foreground pl-2 mt-1.5">
+            Data: {configData.dataDir}
+          </div>
+        )}
+      </div>
+
+      {/* ---- Workspace Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">Workspace</span>
+        <FormRow label="Current">
+          <div className="text-[10px] text-foreground font-mono truncate select-text">
+            {configData?.workspace ?? '(default)'}
+          </div>
+        </FormRow>
+        <FormRow label="Switch to">
+          <div className="flex gap-1">
+            <TermInput
+              type="text"
+              id="workspace-path-input"
+              placeholder="/path/to/project"
+              className="flex-1"
+              defaultValue=""
+            />
+            <TermButton
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                const input = document.getElementById("workspace-path-input") as HTMLInputElement;
+                const val = input?.value?.trim();
+                if (!val) return;
+                sendCommand({ type: "SWITCH_WORKSPACE", path: val });
+                input.value = "";
+              }}
+            >Switch</TermButton>
+          </div>
+        </FormRow>
+        {(configData?.recentWorkspaces ?? []).length > 0 && (
+          <div className="pl-[112px] mt-1.5 space-y-0.5">
+            <div className="text-[9px] text-muted-foreground opacity-60 mb-1">Recent:</div>
+            {(configData?.recentWorkspaces ?? []).slice(0, 5).map((ws, i) => (
+              <button
+                key={i}
+                onClick={() => sendCommand({ type: "SWITCH_WORKSPACE", path: ws })}
+                className="block w-full text-left text-[10px] font-mono text-muted-foreground hover:text-foreground truncate py-0.5 px-1 rounded hover:bg-white/[0.04] transition-colors"
+                title={ws}
+              >
+                {ws === configData?.workspace ? '● ' : '  '}{ws}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ---- System Info Section ---- */}
+      <div className="border-b border-term-border-dim pb-3 mb-3">
+        <span className="text-[13px] text-foreground font-medium block mb-2">System Info</span>
+        <div className="text-term text-[12px] text-muted-foreground pl-2 space-y-1 font-mono select-text">
+          {configData?.machineId && (
+            <div><span className="opacity-60">Machine ID:</span> {configData.machineId}</div>
+          )}
+          {configData?.workspace && (
+            <div><span className="opacity-60">Workspace:</span> {configData.workspace}</div>
+          )}
+          {configData?.dataDir && (
+            <div><span className="opacity-60">Data Dir:</span> {configData.dataDir}</div>
+          )}
+          {detectedBackends.length > 0 && (
+            <div className="pt-1">
+              <span className="opacity-60">Backends:</span>
+              {detectedBackends.map(b => (
+                <span key={b} className="inline-flex items-center gap-1 ml-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-sem-green" />
+                  {b}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

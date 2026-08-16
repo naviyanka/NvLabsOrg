@@ -7,16 +7,28 @@ let currentUrl: string | null = null;
 let currentSessionToken: string | null = null;
 
 // Exponential backoff state
-const RECONNECT_BASE_MS = 2000;
+const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 let reconnectDelay = RECONNECT_BASE_MS;
+let reconnectAttempts = 0;
+
+// Command queue — holds commands sent while disconnected, flushed on reconnect
+const MAX_QUEUE_SIZE = 50;
+const QUEUE_MAX_AGE_MS = 60000; // drop queued commands older than 60s
+interface QueuedCommand {
+  command: Record<string, unknown>;
+  enqueuedAt: number;
+}
+let commandQueue: QueuedCommand[] = [];
 
 export function connectToWs(wsUrl: string, sessionToken?: string) {
   // Clean up any existing connection first
   cleanup();
   currentUrl = wsUrl;
   currentSessionToken = sessionToken ?? null;
-  reconnectDelay = RECONNECT_BASE_MS; // reset backoff on fresh connect
+  reconnectDelay = RECONNECT_BASE_MS;
+  reconnectAttempts = 0;
+  commandQueue = [];
   doConnect();
 }
 
@@ -36,15 +48,39 @@ function cleanup() {
   }
 }
 
+function flushQueue() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || commandQueue.length === 0) return;
+
+  const now = Date.now();
+  // Filter out stale commands
+  const valid = commandQueue.filter(q => now - q.enqueuedAt < QUEUE_MAX_AGE_MS);
+  const dropped = commandQueue.length - valid.length;
+  if (dropped > 0) {
+    console.log(`[WS] Dropped ${dropped} stale queued command(s)`);
+  }
+
+  for (const q of valid) {
+    console.log("[WS] Flushing queued command:", q.command.type);
+    ws.send(JSON.stringify(q.command));
+  }
+
+  if (valid.length > 0) {
+    console.log(`[WS] Flushed ${valid.length} queued command(s)`);
+  }
+
+  commandQueue = [];
+}
+
 function doConnect() {
   if (!currentUrl) return;
 
   const socket = new WebSocket(currentUrl);
 
   socket.onopen = () => {
-    console.log("[WS] Connected");
+    console.log(`[WS] Connected (after ${reconnectAttempts} retry attempts)`);
     // Reset backoff on successful connection
     reconnectDelay = RECONNECT_BASE_MS;
+    reconnectAttempts = 0;
     // Send AUTH handshake first
     if (socket.readyState === WebSocket.OPEN && currentSessionToken) {
       socket.send(JSON.stringify({ type: "AUTH", sessionToken: currentSessionToken }));
@@ -54,7 +90,10 @@ function doConnect() {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: "PING" }));
       socket.send(JSON.stringify({ type: "LOAD_CHAT_HISTORY" }));
+      socket.send(JSON.stringify({ type: "LIST_COMMANDS" }));
     }
+    // Flush any queued commands
+    flushQueue();
   };
 
   socket.onmessage = (evt) => {
@@ -83,10 +122,11 @@ function doConnect() {
     // Only reconnect if this is still the active socket
     if (ws === socket && currentUrl) {
       ws = null;
-      console.log(`[WS] Reconnecting in ${reconnectDelay}ms...`);
+      reconnectAttempts++;
+      console.log(`[WS] Reconnecting in ${Math.round(reconnectDelay / 1000)}s (attempt #${reconnectAttempts})...`);
       reconnectTimer = setTimeout(doConnect, reconnectDelay);
-      // Exponential backoff: 2s → 3s → 4.5s → ... → 30s max
-      reconnectDelay = Math.min(reconnectDelay * 1.5, RECONNECT_MAX_MS);
+      // Exponential backoff with jitter: 1s → 1.5s → 2.25s → ... → 30s max
+      reconnectDelay = Math.min(reconnectDelay * 1.5 + Math.random() * 500, RECONNECT_MAX_MS);
     }
   };
 
@@ -99,7 +139,13 @@ function doConnect() {
 
 export function sendWsCommand(command: Record<string, unknown>) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    console.warn("[WS] Not connected, dropping command:", command.type);
+    // Queue the command for delivery on reconnect
+    if (commandQueue.length < MAX_QUEUE_SIZE) {
+      commandQueue.push({ command, enqueuedAt: Date.now() });
+      console.log(`[WS] Queued command (offline): ${command.type} (queue size: ${commandQueue.length})`);
+    } else {
+      console.warn(`[WS] Queue full (${MAX_QUEUE_SIZE}), dropping command:`, command.type);
+    }
     return;
   }
   console.log("[WS] Sending command:", command.type, command);
@@ -108,5 +154,15 @@ export function sendWsCommand(command: Record<string, unknown>) {
 
 export function disconnectWs() {
   currentUrl = null;
+  commandQueue = [];
   cleanup();
+}
+
+/** Get current connection state info (for debugging) */
+export function getWsState(): { connected: boolean; queueSize: number; reconnectAttempts: number } {
+  return {
+    connected: ws?.readyState === WebSocket.OPEN,
+    queueSize: commandQueue.length,
+    reconnectAttempts,
+  };
 }

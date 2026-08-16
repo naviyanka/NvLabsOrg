@@ -6,11 +6,59 @@ import { isRealEnter } from "./office-utils";
 import { SysMsg, TokenBadge, MdContent } from "./MessageBubble";
 import { TermButton, TermInput, TermEmpty } from "./primitives";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { CostBadge } from "./CostEstimator";
+import { SlashCommandMenu, parseSlashCommand, type SlashCommand } from "./SlashCommands";
+
+/** Export an agent's conversation as a Markdown file download */
+function exportChatAsMarkdown(agentName: string, messages: Array<{ role: string; text: string; timestamp: number }>) {
+  const lines: string[] = [];
+  lines.push(`# Chat Export: ${agentName}`);
+  lines.push(`Exported: ${new Date().toISOString()}`);
+  lines.push(`Messages: ${messages.length}`);
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  for (const msg of messages) {
+    const time = new Date(msg.timestamp).toLocaleString();
+    const role = msg.role === "user" ? "**You**" : msg.role === "agent" ? `**${agentName}**` : "*System*";
+    lines.push(`### ${role} — ${time}`);
+    lines.push("");
+    lines.push(msg.text || "(empty)");
+    lines.push("");
+  }
+
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${agentName.replace(/\s+/g, "-").toLowerCase()}-chat-${Date.now()}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/store/office-store";
 import dynamic from "next/dynamic";
 
 const MessageBubble = dynamic(() => import("./MessageBubble"), { ssr: false });
+const AgentTimeline = dynamic(() => import("./AgentTimeline"), { ssr: false });
+
+/** Small tab button for Chat/Timeline toggle */
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "text-[10px] px-2 py-0.5 rounded font-mono transition-colors",
+        active ? "bg-accent/20 text-accent border border-accent/40" : "text-muted-foreground hover:text-foreground border border-transparent"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 /** Auto-resize a textarea to fit content (1-row min, maxRows cap).
  *  Works consistently across Chrome (Blink) and Tauri/Safari (WebKit). */
@@ -151,6 +199,10 @@ export interface AgentPaneProps {
   onDismissReview?: () => void;
   /** When true, all scroll management is frozen (e.g. during CSS width transition) */
   scrollFrozen?: boolean;
+  /** Show timeline view instead of chat */
+  showTimeline?: boolean;
+  /** Toggle between chat and timeline */
+  onToggleTimeline?: (show: boolean) => void;
   /** Hide role/backend in info bar (shown in console header instead) */
   hideInfoRole?: boolean;
   /** Inline avatar data (console mode) — renders avatar + name inside info bar */
@@ -582,6 +634,20 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
           <TooltipContent side="bottom">{cfg.label}</TooltipContent>
         </Tooltip>
         {tokenUsage.inputTokens > 0 && <TokenBadge inputTokens={tokenUsage.inputTokens} outputTokens={tokenUsage.outputTokens} />}
+        {tokenUsage.inputTokens > 0 && <CostBadge agentId={agentId} />}
+        {messages.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="tdx"
+                onClick={(e) => { e.stopPropagation(); exportChatAsMarkdown(name, messages); }}
+                aria-label="Export chat"
+                style={{ fontSize: 11 }}
+              >{"\u2B07"}</button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Export chat as Markdown</TooltipContent>
+          </Tooltip>
+        )}
         {!teamId && isOwner && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -813,6 +879,16 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
         >
           {/* Messages */}
           <div className="relative flex-1 min-h-0 flex flex-col">
+            {/* Chat / Timeline tab toggle */}
+            <div className="flex items-center gap-0.5 px-3 pt-1.5 pb-0.5">
+              <TabButton active={!props.showTimeline} onClick={() => props.onToggleTimeline?.(false)}>Chat</TabButton>
+              <TabButton active={!!props.showTimeline} onClick={() => props.onToggleTimeline?.(true)}>Timeline</TabButton>
+            </div>
+            {props.showTimeline ? (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <AgentTimeline messages={messages} />
+              </div>
+            ) : (
             <div ref={scrollContainerRef} data-scrollbar className="term-dotgrid term-chat-area flex-1 overflow-y-auto px-3.5 pt-3.5 pb-2.5 flex flex-col min-h-0">
               <ChatMessageList
                 visibleMessages={visibleMessages}
@@ -835,6 +911,7 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                 onApproval={onApproval}
               />
             </div>
+            )}
             {/* Scroll-to-bottom pill */}
             <div
               className={`scroll-pill${scrolledAway ? " visible" : ""}`}
@@ -962,7 +1039,25 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
 
             // Owner input area
             return (
-              <div className="term-input-area px-3 py-2 bg-term-panel shrink-0">
+              <div className="term-input-area px-3 py-2 bg-term-panel shrink-0" style={{ position: "relative" }}>
+                {/* Slash command autocomplete */}
+                {prompt.startsWith("/") && !busy && (
+                  <SlashCommandMenu
+                    query={prompt.slice(1).split(" ")[0]}
+                    visible={prompt.startsWith("/") && !prompt.includes(" ")}
+                    onSelect={(cmd: SlashCommand) => {
+                      // Commands that need args: fill the prompt with the command
+                      if (cmd.argHint) {
+                        onPromptChange(cmd.command + " ");
+                      } else {
+                        // Execute immediately
+                        onPromptChange(cmd.command);
+                        setTimeout(() => onSubmit(), 0);
+                      }
+                    }}
+                    onClose={() => {/* user pressed Escape — handled by input keydown */}}
+                  />
+                )}
                 {isTeamMember ? (
                   <div className="text-center text-muted-foreground font-mono text-term py-2">
                     Tasks are assigned by the Team Lead
@@ -980,6 +1075,16 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                         onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
                         onKeyDown={(e) => {
                           if (e.key === "Escape" && busy) { onCancel(); return; }
+                          // If slash command menu is visible, let it handle navigation keys
+                          const slashMenuOpen = prompt.startsWith("/") && !prompt.includes(" ") && !busy;
+                          if (slashMenuOpen && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab")) {
+                            e.preventDefault();
+                            return; // handled by SlashCommandMenu's document listener
+                          }
+                          if (slashMenuOpen && e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            return; // handled by SlashCommandMenu's document listener
+                          }
                           if (isRealEnter(e)) { e.preventDefault(); onSubmit(); }
                         }}
                         placeholder={busy ? "esc stop \u00b7 type to continue" : ""}

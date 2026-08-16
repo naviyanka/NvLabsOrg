@@ -87,6 +87,8 @@ const StableAgentPane = memo(function StableAgentPane({
   const handleDropImage = useCallback((e: React.DragEvent) => onDropImage(idRef.current, e), [onDropImage]);
   const handleReview = useCallback(onReview ? (result: any, backend?: string) => onReview(idRef.current, result, backend) : undefined as any, [onReview]);
 
+  const [showTimeline, setShowTimeline] = useState(false);
+
   return (
     <>
       <AgentPane
@@ -149,6 +151,8 @@ const StableAgentPane = memo(function StableAgentPane({
         onRevert={onRevert ? () => onRevert(agentId) : undefined}
         onUndoMerge={onUndoMerge ? () => onUndoMerge(agentId) : undefined}
         scrollFrozen={scrollFrozen}
+        showTimeline={showTimeline}
+        onToggleTimeline={setShowTimeline}
         hideInfoRole={!!meta}
         inlineAvatar={meta ? { name: meta.name, palette: meta.palette, isTeamLead: meta.isTeamLead, assetsReady: assetsReady ?? false, AvatarComponent: SpriteAvatar } : null}
       />

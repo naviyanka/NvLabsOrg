@@ -1,36 +1,37 @@
 {
-  "name": "bit-office",
+  "name": "nvlabs-org",
   "version": "1.2.5",
   "description": "Control AI agents from your phone — pixel office UI + real-time gateway",
   "type": "module",
   "bin": {
-    "bit-office": "./dist/index.js"
+    "nvlabs-org": "./dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "dev": "NODE_ENV=development WS_PORT=9099 tsx watch src/index.ts",
+    "dev": "cross-env NODE_ENV=development WS_PORT=9099 tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsup && rm -rf dist/web && cp -r ../web/out dist/web",
+    "build": "tsup && node -e \"const fs=require('fs');fs.rmSync('dist/web',{recursive:true,force:true});fs.cpSync('../web/out','dist/web',{recursive:true})\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ably": "^2.6.0",
+    "ably": "2.18.0",
     "dotenv": "^16.4.0",
-    "nanoid": "^5.0.0",
+    "nanoid": "^5.1.16",
     "node-telegram-bot-api": "^0.67.0",
-    "ws": "^8.18.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@nvlabs-org/orchestrator": "workspace:*",
     "@office/shared": "workspace:*",
-    "@bit-office/orchestrator": "workspace:*",
     "@types/node": "^22.0.0",
-    "@types/node-telegram-bot-api": "^0.64.13",
-    "@types/ws": "^8.5.0",
+    "@types/node-telegram-bot-api": "^0.64.15",
+    "@types/ws": "^8.18.1",
+    "cross-env": "^10.1.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "ai",

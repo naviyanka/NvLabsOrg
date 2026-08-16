@@ -567,3 +567,151 @@ textarea:focus-visible {
   from { opacity: 0; transform: scale(0.97) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ── Toast Notifications ── */
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.95); }
+}
+
+/* ── Skeleton Shimmer ── */
+@keyframes skeleton-shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
+}
+.skeleton-shimmer {
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  /* Prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Left sidebar: collapse to narrower on mobile */
+  .left-sidebar {
+    width: 40px !important;
+  }
+
+  /* Modals: full-width on small screens */
+  [data-term-modal] {
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100vh - 32px) !important;
+    margin: 8px !important;
+  }
+
+  /* Toast notifications: full-width at bottom */
+  .toast-container {
+    left: 8px !important;
+    right: 8px !important;
+    max-width: none !important;
+  }
+
+  /* File explorer: stack instead of side-by-side */
+  .file-explorer-layout {
+    flex-direction: column !important;
+  }
+  .file-explorer-layout > .file-tree {
+    width: 100% !important;
+    max-height: 200px;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Buttons: ensure touch-friendly minimum size (44px) */
+  button, [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Form inputs: prevent zoom on iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Settings modal: single-column on mobile */
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Pipeline builder: stack panels */
+  .pipeline-builder-layout {
+    flex-direction: column !important;
+  }
+  .pipeline-builder-layout > .pipeline-list {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    max-height: 100px;
+    overflow-x: auto;
+    flex-direction: row;
+    display: flex;
+    gap: 4px;
+    padding: 8px !important;
+  }
+
+  /* Agent bar: smaller padding, allow horizontal scroll */
+  .agent-bar {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+
+  /* Dashboard cards: single column */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Small phones (< 480px) */
+@media (max-width: 480px) {
+  .left-sidebar {
+    width: 36px !important;
+    padding-top: 8px !important;
+  }
+  .left-sidebar button {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+
+  /* Tighter spacing */
+  [data-term-modal] {
+    padding: 12px !important;
+  }
+}
+
+/* Ensure nothing overflows the viewport */
+@media (max-width: 1024px) {
+  /* Prevent the right sidebar from being too wide on tablets */
+  .term-sidebar-right {
+    width: min(50vw, 400px) !important;
+  }
+}
+
+/* Touch-friendly interactive elements */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase tap targets for touch */
+  button, a, [role="button"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* Prevent text selection on tap */
+  .no-select-touch {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Disable hover effects (they stick on touch) */
+  .hover-only:hover {
+    background-color: transparent !important;
+  }
+}

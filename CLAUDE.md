@@ -1,4 +1,4 @@
-# Open Office
+# NVLabs Org
 
 ## Project Structure
 - `apps/web` - Next.js 15 PWA (Vercel deployment)
@@ -19,7 +19,7 @@
 - **UI**: PixiJS v8 pixel office + Key Node Mode agent cards
 
 ## Data Directory
-- Dev: `~/.open-office-dev/`, Release: `~/.open-office/`
+- Dev: `~/.nvlabs-org-dev/`, Release: `~/.nvlabs-org/`
 - `config.json` — global config
 - `data/instances/<id>/` — per-gateway state (logs, sessions, memory)
 - `data/agents.json` — agent definitions
@@ -28,7 +28,7 @@
 
 ## Worktree Isolation
 - One agent = one worktree = one branch (keyed by agentId, not taskId)
-- Worktrees stored outside repo at `~/.open-office[-dev]/worktrees/` to prevent path traversal
+- Worktrees stored outside repo at `~/.nvlabs-org[-dev]/worktrees/` to prevent path traversal
 - On task:done: auto-merge to main (default), with per-agent toggle + undo merge
 - Before each task: auto-rebase onto latest main, conflicts auto-resolved
 - Cleanup: on fire agent only (no startup GC)

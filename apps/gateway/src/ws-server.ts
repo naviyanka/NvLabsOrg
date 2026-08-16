@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { CommandSchema } from "@office/shared";
 import type { GatewayEvent, Command, UserRole } from "@office/shared";
 import { config } from "./config.js";
-import { previewServer } from "@bit-office/orchestrator";
+import { previewServer } from "@nvlabs-org/orchestrator";
 import { networkInterfaces, homedir } from "os";
 import { readFile, stat } from "fs/promises";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -103,6 +103,13 @@ export const wsChannel: Channel = {
 
     return new Promise((promiseResolve) => {
       const requestHandler = async (req: IncomingMessage, res: ServerResponse) => {
+        // --- REST API routes (/api/v1/*) ---
+        if (req.url?.startsWith("/api/v1/")) {
+          const { handleApiRequest } = await import("./api-routes.js");
+          const handled = await handleApiRequest(req, res);
+          if (handled) return;
+        }
+
         // CORS headers
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");

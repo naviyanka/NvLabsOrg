@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import path from "path";
-import type { AIBackend } from "@bit-office/orchestrator";
+import type { AIBackend } from "@nvlabs-org/orchestrator";
 
 const isRoot = process.getuid?.() === 0;
 
@@ -94,17 +94,48 @@ const backends: AIBackend[] = [
   // ── Beta backends ─────────────────────────────────────────────
   {
     id: "gemini",
-    name: "Gemini CLI",
-    command: "gemini",
+    name: "Antigravity CLI",
+    command: "agy",
     instructionPath: "GEMINI.md",
     stability: "beta",
     guardType: "flag",             // --sandbox flag
-    supportsResume: false,
-    supportsAgentType: false,
+    supportsResume: true,
+    supportsAgentType: true,
+    supportsNativeWorktree: false,
+    supportsStructuredOutput: true,
+    buildArgs(prompt, opts) {
+      const args = ["-p", prompt, "--output-format", "stream-json"];
+      if (!isRoot) args.push("--dangerously-skip-permissions");
+      if (opts.continue) args.push("--continue");
+      if (opts.model) args.push("--model", opts.model);
+      if (opts.agentType) args.push("--agent", opts.agentType);
+      return args;
+    },
+  },
+  {
+    id: "kiro",
+    name: "Kiro CLI",
+    command: "kiro-cli",
+    instructionPath: ".kiro/steering/default.md",
+    stability: "beta",
+    guardType: "flag",             // --trust-all-tools flag
+    supportsResume: true,
+    supportsAgentType: true,
     supportsNativeWorktree: false,
     supportsStructuredOutput: false,
-    buildArgs(prompt) {
-      return ["-p", prompt, "--yolo"];
+    buildArgs(prompt, opts) {
+      const args = ["chat", "--no-interactive", "--trust-all-tools"];
+      if (!opts.skipResume) {
+        if (opts.resumeSessionId) {
+          args.push("--resume-id", opts.resumeSessionId);
+        } else if (opts.continue) {
+          args.push("--resume");
+        }
+      }
+      if (opts.model) args.push("--model", opts.model);
+      if (opts.agentType) args.push("--agent", opts.agentType);
+      args.push(prompt);
+      return args;
     },
   },
 
@@ -223,20 +254,48 @@ export function getAllBackends(): AIBackend[] {
 }
 
 /**
- * Version-probe commands for backends with ambiguous binary names.
- * Maps backend id → shell command that succeeds ONLY if the real CLI is installed.
- * Backends not listed here use plain `which <command>` (their names are distinctive enough).
+ * Identity patterns for backends with ambiguous binary names.
+ * Maps backend id → pattern that `<command> --version` output must match for the
+ * binary to count as the real CLI. Backends not listed here are accepted on a
+ * plain path lookup (their names are distinctive enough).
+ *
+ * The match runs in JS rather than piping through `grep`, so detection does not
+ * depend on POSIX tools being present — on native Windows they usually are not.
  */
-const VERSION_PROBES: Record<string, string> = {
+const VERSION_PROBES: Record<string, RegExp> = {
   // "agent" is too generic — verify it's actually Cursor's CLI
-  cursor: "agent --version 2>&1 | grep -iq cursor",
+  cursor: /cursor/i,
   // "copilot" also names AWS Copilot CLI — verify GitHub's agentic CLI
-  copilot: "copilot --version 2>&1 | grep -Eiq 'GitHub Copilot CLI|github copilot'",
+  copilot: /GitHub Copilot CLI|github copilot/i,
   // "pi" collides with math utilities, coreutils, etc.
-  pi: "pi --version 2>&1 | grep -iq pi",
+  pi: /pi/i,
   // "sp" collides with Sapling SCM and other tools
-  sapling: "sp --version 2>&1 | grep -iq sapling",
+  sapling: /sapling/i,
 };
+
+/**
+ * Resolve a command to an absolute path, or null when it is not installed.
+ *
+ * Windows has no `which`: execSync runs commands through cmd.exe, where `which`
+ * is not a builtin and Git's POSIX `which.exe` is normally not on PATH, so the
+ * old `which <cmd>` probe failed for every backend and detected nothing. `where`
+ * is the native equivalent and returns real Windows paths.
+ */
+function lookupCommand(command: string): string | null {
+  const finder = process.platform === "win32" ? "where" : "which";
+  try {
+    const out = execSync(`${finder} ${command}`, {
+      encoding: "utf-8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    // `where` can report several hits — take the first.
+    const first = out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)[0];
+    return first ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * `which`/`execSync` above run through a POSIX shell (Git Bash on Windows), so resolved
@@ -270,28 +329,36 @@ function toNativeWindowsPath(posixPath: string): string {
 export function detectBackends(): string[] {
   const detected: string[] = [];
   for (const backend of backends) {
-    try {
-      const probe = VERSION_PROBES[backend.id];
-      if (probe) {
-        // Ambiguous name — run version probe to verify identity
-        execSync(probe, { stdio: "ignore", timeout: 5000 });
-      } else {
-        // Distinctive name — `which` is sufficient
-        execSync(`which ${backend.command}`, { stdio: "ignore", timeout: 3000 });
-      }
-      // Resolve absolute path so spawn() doesn't depend on child env PATH
-      try {
-        let absPath = execSync(`which ${backend.command}`, { encoding: "utf-8", timeout: 3000 }).trim();
-        if (absPath && absPath.startsWith("/")) {
-          if (process.platform === "win32") absPath = toNativeWindowsPath(absPath);
-          backend.command = absPath;
-          console.log(`[backends] ${backend.id}: resolved to ${absPath}`);
-        }
-      } catch { /* keep relative command as fallback */ }
-      detected.push(backend.id);
-    } catch {
-      // not installed or wrong binary
+    let resolved = lookupCommand(backend.command);
+    if (!resolved) continue; // not installed
+
+    // A POSIX `which` (Git Bash) reports "/c/Users/..." which Win32 spawn() cannot use
+    if (process.platform === "win32" && resolved.startsWith("/")) {
+      resolved = toNativeWindowsPath(resolved);
     }
+
+    // Ambiguous name — confirm identity from --version output before accepting
+    const probe = VERSION_PROBES[backend.id];
+    if (probe) {
+      let output = "";
+      try {
+        output = execSync(`"${resolved}" --version`, {
+          encoding: "utf-8",
+          timeout: 5000,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch (err) {
+        // Some CLIs exit non-zero on --version but still print their name
+        const e = err as { stdout?: string | Buffer; stderr?: string | Buffer };
+        output = `${e.stdout?.toString() ?? ""}${e.stderr?.toString() ?? ""}`;
+      }
+      if (!probe.test(output)) continue; // wrong binary
+    }
+
+    // Store the absolute path so spawn() doesn't depend on the child env PATH
+    backend.command = resolved;
+    console.log(`[backends] ${backend.id}: resolved to ${resolved}`);
+    detected.push(backend.id);
   }
   return detected;
 }

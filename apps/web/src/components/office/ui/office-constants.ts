@@ -31,7 +31,8 @@ export type Ratings = Partial<Record<RatingKey, number>>;
 export const BACKEND_OPTIONS = [
   { id: "claude", name: "Claude", color: "#d97706" },
   { id: "codex", name: "Codex", color: "#a855f7" },
-  { id: "gemini", name: "Gemini", color: "#3b82f6" },
+  { id: "gemini", name: "Antigravity", color: "#3b82f6" },
+  { id: "kiro", name: "Kiro", color: "#10b981" },
   { id: "aider", name: "Aider", color: "#22c55e" },
   { id: "opencode", name: "OpenCode", color: "#06b6d4" },
 ];

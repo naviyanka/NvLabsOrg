@@ -1,5 +1,5 @@
 {
-  "name": "@bit-office/orchestrator",
+  "name": "@nvlabs-org/orchestrator",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,11 +12,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bit-office/memory": "workspace:*",
-    "nanoid": "^5.0.0"
+    "@nvlabs-org/memory": "workspace:*",
+    "nanoid": "^5.1.16"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.9.3"
   }
 }

@@ -30,7 +30,7 @@ function freshStorage(): void {
 }
 
 // All describes share a module-global storage root, so they MUST run sequentially.
-describe("@bit-office/memory", { concurrency: 1 }, () => {
+describe("@nvlabs-org/memory", { concurrency: 1 }, () => {
 
 describe("commitSession", { concurrency: 1 }, () => {
   it("should create session summary and save to disk", () => {
@@ -206,4 +206,4 @@ describe("legacy operations", { concurrency: 1 }, () => {
   });
 });
 
-}); // end @bit-office/memory
+}); // end @nvlabs-org/memory

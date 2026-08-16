@@ -179,6 +179,17 @@ export const SaveConfigCommand = z.object({
   autoMergeEnabled: z.boolean().optional(),
   tunnelToken: z.string().optional(),
   tunnelBaseUrl: z.string().optional(),
+  defaultBackend: z.string().optional(),
+  defaultModels: z.record(z.string(), z.string()).optional(),
+  sandboxMode: z.enum(["full", "safe"]).optional(),
+  githubToken: z.string().optional(),
+  githubRemote: z.string().optional(),
+  webhooks: z.array(z.object({
+    url: z.string(),
+    secret: z.string().optional(),
+    events: z.array(z.string()),
+    enabled: z.boolean(),
+  })).optional(),
 });
 
 export const MergeWorktreeCommand = z.object({
@@ -224,6 +235,141 @@ export const LoadChatHistoryCommand = z.object({
   type: z.literal("LOAD_CHAT_HISTORY"),
 });
 
+export const GetLogsCommand = z.object({
+  type: z.literal("GET_LOGS"),
+  lines: z.number().optional(),
+});
+
+export const GetMetricsCommand = z.object({
+  type: z.literal("GET_METRICS"),
+});
+
+export const ClearMetricsCommand = z.object({
+  type: z.literal("CLEAR_METRICS"),
+});
+
+export const SaveTeamTemplateCommand = z.object({
+  type: z.literal("SAVE_TEAM_TEMPLATE"),
+  name: z.string(),
+  members: z.array(z.object({ defId: z.string(), backend: z.string().optional() })),
+  workDir: z.string().optional(),
+});
+
+export const ListTeamTemplatesCommand = z.object({
+  type: z.literal("LIST_TEAM_TEMPLATES"),
+});
+
+export const DeleteTeamTemplateCommand = z.object({
+  type: z.literal("DELETE_TEAM_TEMPLATE"),
+  name: z.string(),
+});
+
+export const ListFilesCommand = z.object({
+  type: z.literal("LIST_FILES"),
+  path: z.string(),
+  depth: z.number().optional(),
+});
+
+export const ReadFileCommand = z.object({
+  type: z.literal("READ_FILE"),
+  path: z.string(),
+});
+
+export const GetGitStatusCommand = z.object({
+  type: z.literal("GET_GIT_STATUS"),
+  path: z.string().optional(),
+});
+
+export const GetGitLogCommand = z.object({
+  type: z.literal("GET_GIT_LOG"),
+  path: z.string().optional(),
+  count: z.number().optional(),
+});
+
+export const PushBranchCommand = z.object({
+  type: z.literal("PUSH_BRANCH"),
+  path: z.string().optional(),
+  branch: z.string().optional(),
+  remote: z.string().optional(),
+});
+
+export const CreatePrCommand = z.object({
+  type: z.literal("CREATE_PR"),
+  path: z.string().optional(),
+  title: z.string(),
+  body: z.string().optional(),
+  branch: z.string().optional(),
+  base: z.string().optional(),
+});
+
+export const SavePipelineCommand = z.object({
+  type: z.literal("SAVE_PIPELINE"),
+  name: z.string(),
+  steps: z.array(z.object({
+    id: z.string(),
+    agentRole: z.string(),
+    prompt: z.string(),
+    dependsOn: z.array(z.string()).optional(),
+  })),
+});
+
+export const RunPipelineCommand = z.object({
+  type: z.literal("RUN_PIPELINE"),
+  name: z.string(),
+  input: z.string().optional(),
+  workDir: z.string().optional(),
+});
+
+export const ListPipelinesCommand = z.object({
+  type: z.literal("LIST_PIPELINES"),
+});
+
+export const ClearMemoryCommand = z.object({
+  type: z.literal("CLEAR_MEMORY"),
+});
+
+export const ResetConfigCommand = z.object({
+  type: z.literal("RESET_CONFIG"),
+});
+
+export const GetFileDiffCommand = z.object({
+  type: z.literal("GET_FILE_DIFF"),
+  path: z.string().optional(),
+  file: z.string(),
+});
+
+export const SwitchWorkspaceCommand = z.object({
+  type: z.literal("SWITCH_WORKSPACE"),
+  path: z.string(),
+});
+
+export const CreateScheduleCommand = z.object({
+  type: z.literal("CREATE_SCHEDULE"),
+  name: z.string(),
+  agentId: z.string(),
+  prompt: z.string(),
+  intervalMinutes: z.number(),
+  workDir: z.string().optional(),
+});
+
+export const DeleteScheduleCommand = z.object({
+  type: z.literal("DELETE_SCHEDULE"),
+  id: z.string(),
+});
+
+export const ToggleScheduleCommand = z.object({
+  type: z.literal("TOGGLE_SCHEDULE"),
+  id: z.string(),
+});
+
+export const ListSchedulesCommand = z.object({
+  type: z.literal("LIST_SCHEDULES"),
+});
+
+export const ListCommandsCommand = z.object({
+  type: z.literal("LIST_COMMANDS"),
+});
+
 export const CommandSchema = z.discriminatedUnion("type", [
   RunTaskCommand,
   ApprovalDecisionCommand,
@@ -259,6 +405,30 @@ export const CommandSchema = z.discriminatedUnion("type", [
   DeleteSkillCommand,
   SyncChatHistoryCommand,
   LoadChatHistoryCommand,
+  GetLogsCommand,
+  GetMetricsCommand,
+  ClearMetricsCommand,
+  SaveTeamTemplateCommand,
+  ListTeamTemplatesCommand,
+  DeleteTeamTemplateCommand,
+  ListFilesCommand,
+  ReadFileCommand,
+  GetGitStatusCommand,
+  GetGitLogCommand,
+  PushBranchCommand,
+  CreatePrCommand,
+  SavePipelineCommand,
+  RunPipelineCommand,
+  ListPipelinesCommand,
+  ClearMemoryCommand,
+  ResetConfigCommand,
+  GetFileDiffCommand,
+  SwitchWorkspaceCommand,
+  CreateScheduleCommand,
+  DeleteScheduleCommand,
+  ToggleScheduleCommand,
+  ListSchedulesCommand,
+  ListCommandsCommand,
 ]);
 
 export type RunTaskCommand = z.infer<typeof RunTaskCommand>;
@@ -293,4 +463,28 @@ export type SaveConfigCommand = z.infer<typeof SaveConfigCommand>;
 export type ListSkillsCommand = z.infer<typeof ListSkillsCommand>;
 export type SaveSkillCommand = z.infer<typeof SaveSkillCommand>;
 export type DeleteSkillCommand = z.infer<typeof DeleteSkillCommand>;
+export type GetLogsCommand = z.infer<typeof GetLogsCommand>;
+export type GetMetricsCommand = z.infer<typeof GetMetricsCommand>;
+export type ClearMetricsCommand = z.infer<typeof ClearMetricsCommand>;
+export type SaveTeamTemplateCommand = z.infer<typeof SaveTeamTemplateCommand>;
+export type ListTeamTemplatesCommand = z.infer<typeof ListTeamTemplatesCommand>;
+export type DeleteTeamTemplateCommand = z.infer<typeof DeleteTeamTemplateCommand>;
+export type ListFilesCommand = z.infer<typeof ListFilesCommand>;
+export type ReadFileCommand = z.infer<typeof ReadFileCommand>;
+export type GetGitStatusCommand = z.infer<typeof GetGitStatusCommand>;
+export type GetGitLogCommand = z.infer<typeof GetGitLogCommand>;
+export type PushBranchCommand = z.infer<typeof PushBranchCommand>;
+export type CreatePrCommand = z.infer<typeof CreatePrCommand>;
+export type SavePipelineCommand = z.infer<typeof SavePipelineCommand>;
+export type RunPipelineCommand = z.infer<typeof RunPipelineCommand>;
+export type ListPipelinesCommand = z.infer<typeof ListPipelinesCommand>;
+export type ClearMemoryCommand = z.infer<typeof ClearMemoryCommand>;
+export type ResetConfigCommand = z.infer<typeof ResetConfigCommand>;
+export type GetFileDiffCommand = z.infer<typeof GetFileDiffCommand>;
+export type SwitchWorkspaceCommand = z.infer<typeof SwitchWorkspaceCommand>;
+export type CreateScheduleCommand = z.infer<typeof CreateScheduleCommand>;
+export type DeleteScheduleCommand = z.infer<typeof DeleteScheduleCommand>;
+export type ToggleScheduleCommand = z.infer<typeof ToggleScheduleCommand>;
+export type ListSchedulesCommand = z.infer<typeof ListSchedulesCommand>;
+export type ListCommandsCommand = z.infer<typeof ListCommandsCommand>;
 export type Command = z.infer<typeof CommandSchema>;

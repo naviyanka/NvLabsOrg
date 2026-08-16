@@ -7,13 +7,13 @@ const TIMEOUT = 5000;
 
 // ---------------------------------------------------------------------------
 // Centralized worktree storage
-// All agent worktrees live under ~/.open-office[-dev]/worktrees/<repo-hash>/
+// All agent worktrees live under ~/.nvlabs-org[-dev]/worktrees/<repo-hash>/
 // This keeps them physically outside any repo, avoiding upward-traversal issues
 // (Claude Code / agents walking up to find project root, CLAUDE.md, etc.).
 // ---------------------------------------------------------------------------
 
 const OPEN_OFFICE_DIR = path.join(homedir(),
-  process.env.NODE_ENV === "development" ? ".open-office-dev" : ".open-office");
+  process.env.NODE_ENV === "development" ? ".nvlabs-org-dev" : ".nvlabs-org");
 const WORKTREE_BASE_DIR = path.join(OPEN_OFFICE_DIR, "worktrees");
 
 function simpleHash(str: string): string {
@@ -264,6 +264,10 @@ function gitExec(cmd: string, cwd: string): string {
 }
 
 function shellQuote(value: string): string {
+  if (process.platform === "win32") {
+    // cmd.exe uses double quotes; escape inner doubles
+    return `"${value.replace(/"/g, '""')}"`;
+  }
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
@@ -313,7 +317,7 @@ function findWorktreePathForBranch(repoRoot: string, branch: string): string | n
 
 /**
  * Create a git worktree for an agent's task.
- * Worktrees are stored centrally at ~/.open-office[-dev]/worktrees/<repo-hash>/
+ * Worktrees are stored centrally at ~/.nvlabs-org[-dev]/worktrees/<repo-hash>/
  * Returns the worktree path, or null if workspace is not a git repo.
  */
 export function createWorktree(
@@ -840,7 +844,7 @@ export function removeWorktree(worktreePath: string, branch: string, workspace?:
 
 /**
  * Clean up stale agent worktrees and branches.
- * Scans ~/.open-office[-dev]/worktrees/<repo-hash>/ for the given workspace.
+ * Scans ~/.nvlabs-org[-dev]/worktrees/<repo-hash>/ for the given workspace.
  */
 export function cleanupStaleWorktrees(
   workspace: string,

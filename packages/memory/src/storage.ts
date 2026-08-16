@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // @bit-office/memory — File-based storage layer
 //
-// All data lives under a configurable root directory (default ~/.open-office[-dev]/data/memory/).
+// All data lives under a configurable root directory (default ~/.nvlabs-org[-dev]/data/memory/).
 // Layout:
 //   {root}/memory.json              — legacy project-level memory
 //   {root}/sessions/{agentId}.json  — L1 session history per agent
@@ -24,7 +24,7 @@ import type {
 /* ── Configurable root ──────────────────────────────────────────────────── */
 
 let _root = path.join(homedir(),
-  process.env.NODE_ENV === "development" ? ".open-office-dev" : ".open-office",
+  process.env.NODE_ENV === "development" ? ".nvlabs-org-dev" : ".nvlabs-org",
   "data", "memory");
 
 /** Override the storage root directory (call before any read/write). */

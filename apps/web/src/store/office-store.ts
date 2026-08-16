@@ -107,6 +107,16 @@ export interface Suggestion {
 
 // ── Project concept (Phase 1: project-centric architecture) ──
 
+export interface AppNotification {
+  id: string;
+  type: "task_done" | "task_failed" | "approval_needed" | "agent_created";
+  title: string;
+  body: string;
+  agentId?: string;
+  timestamp: number;
+  read: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -150,9 +160,19 @@ interface OfficeStore {
   viewingProjectName: string | null;
   pendingPreviewUrl: string | null;
   configResult: { success: boolean; message: string; telegramConnected?: boolean; tunnelRunning?: boolean } | null;
-  configData: { telegramBotToken?: string; telegramAllowedUsers?: string[]; telegramConnected?: boolean; worktreeEnabled?: boolean; autoMergeEnabled?: boolean; tunnelBaseUrl?: string; tunnelToken?: string; tunnelRunning?: boolean } | null;
+  configData: { telegramBotToken?: string; telegramAllowedUsers?: string[]; telegramConnected?: boolean; worktreeEnabled?: boolean; autoMergeEnabled?: boolean; tunnelBaseUrl?: string; tunnelToken?: string; tunnelRunning?: boolean; defaultBackend?: string; defaultModels?: Record<string, string>; sandboxMode?: "full" | "safe"; detectedBackends?: string[]; machineId?: string; workspace?: string; dataDir?: string; githubToken?: string; githubRemote?: string; recentWorkspaces?: string[]; webhooks?: Array<{ url: string; secret?: string; events: string[]; enabled: boolean }> } | null;
   detectedBackends: string[];
   availableSkills: Array<{ name: string; title: string; isFolder: boolean }>;
+  gatewayLogs: string[];
+  metricsData: { agents: Record<string, { agentId: string; agentName: string; backend: string; taskCount: number; successCount: number; failCount: number; totalInputTokens: number; totalOutputTokens: number; totalDurationMs: number; lastTaskAt: number }>; updatedAt: number } | null;
+  notifications: AppNotification[];
+  unreadNotifications: number;
+  fileExplorerEntries: Array<{ name: string; path: string; isDir: boolean; size?: number }> | null;
+  fileViewerContent: string | null;
+  gitStatus: { branch: string; changes: Array<{ status: string; file: string }>; ahead?: number; behind?: number } | null;
+  gitLog: Array<{ hash: string; message: string; author: string; date: string }> | null;
+  fileDiff: { file: string; diff: string } | null;
+  slashCommands: Array<{ command: string; description: string; category: string; argHint?: string }>;
   connected: boolean;
   hydrated: boolean;
   /** Separated from agents to avoid full Map clone on every LOG_APPEND */
@@ -424,6 +444,16 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
   configData: null,
   detectedBackends: [],
   availableSkills: [],
+  gatewayLogs: [],
+  metricsData: null,
+  notifications: [],
+  unreadNotifications: 0,
+  fileExplorerEntries: null,
+  fileViewerContent: null,
+  gitStatus: null,
+  gitLog: null,
+  fileDiff: null,
+  slashCommands: [],
   connected: false,
   hydrated: false,
   agentLogLines: new Map(),
@@ -662,6 +692,11 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
           }
           // Skip localStorage persistence for external agents and temporary reviewers
           if (!event.isExternal && !event.agentId.startsWith("reviewer-")) {
+            // Auto-add new agents to the active project so they're visible immediately
+            const activeProj = state.activeProjectId ? state.projects.get(state.activeProjectId) : undefined;
+            if (activeProj && !activeProj.agentIds.includes(event.agentId)) {
+              activeProj.agentIds.push(event.agentId);
+            }
             // Debug: detect isTeamLead loss
             const updated = agents.get(event.agentId);
             if (existing?.isTeamLead && !updated?.isTeamLead) {
@@ -746,7 +781,9 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
               riskLevel: event.riskLevel,
             },
           });
-          break;
+          const approvalNotif: AppNotification = { id: `notif-${Date.now()}-approval-${event.agentId}`, type: "approval_needed", title: `${agent.name} — Approval Needed`, body: event.title.slice(0, 150), agentId: event.agentId, timestamp: Date.now(), read: false };
+          const approvalNotifs = [...state.notifications, approvalNotif].slice(-50);
+          return { agents, notifications: approvalNotifs, unreadNotifications: approvalNotifs.filter(n => !n.read).length };
         }
         case "TASK_DONE": {
           const agent = agents.get(event.agentId) ?? defaultAgent(event.agentId);
@@ -850,7 +887,9 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
           });
           saveToStorage(agents);
           notifyTaskDone(agent.name, bestText.slice(0, 200));
-          return { agents, agentLogLines: doneLogLines };
+          const doneNotif: AppNotification = { id: `notif-${Date.now()}-done-${event.agentId}`, type: "task_done", title: `${agent.name} — Task Complete`, body: (event.result.summary ?? "Done").slice(0, 150), agentId: event.agentId, timestamp: Date.now(), read: false };
+          const updatedNotifs = [...state.notifications, doneNotif].slice(-50);
+          return { agents, agentLogLines: doneLogLines, notifications: updatedNotifs, unreadNotifications: updatedNotifs.filter(n => !n.read).length };
         }
         case "TASK_FAILED": {
           const agent = agents.get(event.agentId) ?? defaultAgent(event.agentId);
@@ -882,7 +921,9 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
             }],
           });
           saveToStorage(agents);
-          return { agents, agentLogLines: failLogLines };
+          const failNotif: AppNotification = { id: `notif-${Date.now()}-fail-${event.agentId}`, type: "task_failed", title: `${agent.name} — Task Failed`, body: event.error.slice(0, 150), agentId: event.agentId, timestamp: Date.now(), read: false };
+          const failNotifs = [...state.notifications, failNotif].slice(-50);
+          return { agents, agentLogLines: failLogLines, notifications: failNotifs, unreadNotifications: failNotifs.filter(n => !n.read).length };
         }
         case "TASK_DELEGATED": {
           const fromAgent = agents.get(event.fromAgentId);
@@ -1078,6 +1119,30 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
           } catch { /* malformed data */ }
           return { agents };
         }
+        case "LOGS_LOADED": {
+          return { agents, gatewayLogs: event.lines };
+        }
+        case "METRICS_LOADED": {
+          return { agents, metricsData: { agents: event.agents, updatedAt: event.updatedAt } };
+        }
+        case "FILE_LIST": {
+          return { agents, fileExplorerEntries: event.entries };
+        }
+        case "FILE_CONTENT": {
+          return { agents, fileViewerContent: event.content };
+        }
+        case "GIT_STATUS": {
+          return { agents, gitStatus: { branch: event.branch, changes: event.changes, ahead: event.ahead, behind: event.behind } };
+        }
+        case "GIT_LOG": {
+          return { agents, gitLog: event.commits };
+        }
+        case "FILE_DIFF": {
+          return { agents, fileDiff: { file: event.file, diff: event.diff } };
+        }
+        case "COMMANDS_LOADED": {
+          return { agents, slashCommands: event.commands };
+        }
         case "TEAM_PHASE": {
           const teamPhases = new Map(state.teamPhases);
           teamPhases.set(event.teamId, { phase: event.phase, leadAgentId: event.leadAgentId });
@@ -1113,7 +1178,7 @@ export const useOfficeStore = create<OfficeStore>((set, get) => ({
           return { agents, detectedBackends: event.backends };
         }
         case "CONFIG_LOADED": {
-          return { agents, configData: { telegramBotToken: event.telegramBotToken, telegramAllowedUsers: event.telegramAllowedUsers, telegramConnected: event.telegramConnected, worktreeEnabled: event.worktreeEnabled, autoMergeEnabled: event.autoMergeEnabled, tunnelBaseUrl: event.tunnelBaseUrl, tunnelToken: event.tunnelToken, tunnelRunning: event.tunnelRunning } };
+          return { agents, configData: { telegramBotToken: event.telegramBotToken, telegramAllowedUsers: event.telegramAllowedUsers, telegramConnected: event.telegramConnected, worktreeEnabled: event.worktreeEnabled, autoMergeEnabled: event.autoMergeEnabled, tunnelBaseUrl: event.tunnelBaseUrl, tunnelToken: event.tunnelToken, tunnelRunning: event.tunnelRunning, defaultBackend: event.defaultBackend, defaultModels: event.defaultModels, sandboxMode: event.sandboxMode, detectedBackends: event.detectedBackends, machineId: event.machineId, workspace: event.workspace, dataDir: event.dataDir, githubToken: event.githubToken, githubRemote: event.githubRemote, recentWorkspaces: event.recentWorkspaces, webhooks: event.webhooks } };
         }
         case "CONFIG_SAVED": {
           return { agents, configResult: { success: event.success, message: event.message, telegramConnected: event.telegramConnected, tunnelRunning: event.tunnelRunning } };

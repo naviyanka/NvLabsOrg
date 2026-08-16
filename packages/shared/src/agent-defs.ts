@@ -7,10 +7,10 @@ export interface AgentDefinition {
   palette: number;        // Avatar palette index (0-7)
   isBuiltin: boolean;     // true = shipped with app, editable but not deletable
   teamRole: "dev" | "reviewer" | "leader";  // What team slot this agent can fill
-  skillFiles?: string[];  // Skill file names in ~/.open-office/skills/ (e.g. ["tdd", "react-patterns"])
+  skillFiles?: string[];  // Skill file names in ~/.nvlabs-org/skills/ (e.g. ["tdd", "react-patterns"])
 }
 
-/** Metadata for a skill stored in ~/.open-office[-dev]/skills/ */
+/** Metadata for a skill stored in ~/.nvlabs-org[-dev]/skills/ */
 export interface SkillMeta {
   name: string;           // Directory or file name (without .md extension)
   title: string;          // Display title (first heading or name)

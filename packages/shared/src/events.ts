@@ -286,6 +286,22 @@ export const ConfigLoadedEvent = z.object({
   tunnelBaseUrl: z.string().optional(),
   tunnelToken: z.string().optional(),
   tunnelRunning: z.boolean().optional(),
+  defaultBackend: z.string().optional(),
+  defaultModels: z.record(z.string(), z.string()).optional(),
+  sandboxMode: z.enum(["full", "safe"]).optional(),
+  detectedBackends: z.array(z.string()).optional(),
+  machineId: z.string().optional(),
+  workspace: z.string().optional(),
+  dataDir: z.string().optional(),
+  githubToken: z.string().optional(),
+  githubRemote: z.string().optional(),
+  recentWorkspaces: z.array(z.string()).optional(),
+  webhooks: z.array(z.object({
+    url: z.string(),
+    secret: z.string().optional(),
+    events: z.array(z.string()),
+    enabled: z.boolean(),
+  })).optional(),
 });
 
 export const ConfigSavedEvent = z.object({
@@ -300,6 +316,142 @@ export const ChatHistoryLoadedEvent = z.object({
   type: z.literal("CHAT_HISTORY_LOADED"),
   /** Serialized PersistedAgent[] — same format as localStorage */
   data: z.string(),
+});
+
+export const LogsLoadedEvent = z.object({
+  type: z.literal("LOGS_LOADED"),
+  lines: z.array(z.string()),
+});
+
+export const MetricsLoadedEvent = z.object({
+  type: z.literal("METRICS_LOADED"),
+  agents: z.record(z.string(), z.object({
+    agentId: z.string(),
+    agentName: z.string(),
+    backend: z.string(),
+    taskCount: z.number(),
+    successCount: z.number(),
+    failCount: z.number(),
+    totalInputTokens: z.number(),
+    totalOutputTokens: z.number(),
+    totalDurationMs: z.number(),
+    lastTaskAt: z.number(),
+  })),
+  updatedAt: z.number(),
+});
+
+export const TeamTemplatesLoadedEvent = z.object({
+  type: z.literal("TEAM_TEMPLATES_LOADED"),
+  templates: z.array(z.object({
+    name: z.string(),
+    members: z.array(z.object({ defId: z.string(), backend: z.string().optional() })),
+    workDir: z.string().optional(),
+  })),
+});
+
+export const FileListEvent = z.object({
+  type: z.literal("FILE_LIST"),
+  path: z.string(),
+  entries: z.array(z.object({
+    name: z.string(),
+    path: z.string(),
+    isDir: z.boolean(),
+    size: z.number().optional(),
+  })),
+});
+
+export const FileContentEvent = z.object({
+  type: z.literal("FILE_CONTENT"),
+  path: z.string(),
+  content: z.string(),
+  truncated: z.boolean().optional(),
+});
+
+export const GitStatusEvent = z.object({
+  type: z.literal("GIT_STATUS"),
+  branch: z.string(),
+  changes: z.array(z.object({
+    status: z.string(),
+    file: z.string(),
+  })),
+  ahead: z.number().optional(),
+  behind: z.number().optional(),
+});
+
+export const GitLogEvent = z.object({
+  type: z.literal("GIT_LOG"),
+  commits: z.array(z.object({
+    hash: z.string(),
+    message: z.string(),
+    author: z.string(),
+    date: z.string(),
+  })),
+});
+
+export const GitPushResultEvent = z.object({
+  type: z.literal("GIT_PUSH_RESULT"),
+  success: z.boolean(),
+  message: z.string(),
+  branch: z.string().optional(),
+});
+
+export const PrCreatedEvent = z.object({
+  type: z.literal("PR_CREATED"),
+  success: z.boolean(),
+  url: z.string().optional(),
+  message: z.string(),
+});
+
+export const PipelinesLoadedEvent = z.object({
+  type: z.literal("PIPELINES_LOADED"),
+  pipelines: z.array(z.object({
+    name: z.string(),
+    steps: z.array(z.object({
+      id: z.string(),
+      agentRole: z.string(),
+      prompt: z.string(),
+      dependsOn: z.array(z.string()).optional(),
+    })),
+  })),
+});
+
+export const PipelineProgressEvent = z.object({
+  type: z.literal("PIPELINE_PROGRESS"),
+  pipelineName: z.string(),
+  stepId: z.string(),
+  status: z.enum(["pending", "running", "done", "failed"]),
+  result: z.string().optional(),
+});
+
+export const FileDiffEvent = z.object({
+  type: z.literal("FILE_DIFF"),
+  file: z.string(),
+  diff: z.string(),
+});
+
+export const SchedulesLoadedEvent = z.object({
+  type: z.literal("SCHEDULES_LOADED"),
+  schedules: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    agentId: z.string(),
+    prompt: z.string(),
+    intervalMinutes: z.number(),
+    enabled: z.boolean(),
+    lastRunAt: z.number().nullable(),
+    nextRunAt: z.number(),
+    runCount: z.number(),
+  })),
+});
+
+export const CommandsLoadedEvent = z.object({
+  type: z.literal("COMMANDS_LOADED"),
+  commands: z.array(z.object({
+    command: z.string(),
+    description: z.string(),
+    category: z.string(),
+    argHint: z.string().optional(),
+  })),
 });
 
 export const GatewayEventSchema = z.discriminatedUnion("type", [
@@ -335,6 +487,20 @@ export const GatewayEventSchema = z.discriminatedUnion("type", [
   AutoMergeUpdatedEvent,
   SkillListEvent,
   ChatHistoryLoadedEvent,
+  LogsLoadedEvent,
+  MetricsLoadedEvent,
+  TeamTemplatesLoadedEvent,
+  FileListEvent,
+  FileContentEvent,
+  GitStatusEvent,
+  GitLogEvent,
+  GitPushResultEvent,
+  PrCreatedEvent,
+  PipelinesLoadedEvent,
+  PipelineProgressEvent,
+  FileDiffEvent,
+  SchedulesLoadedEvent,
+  CommandsLoadedEvent,
 ]);
 
 export type TokenUsage = z.infer<typeof TokenUsage>;
@@ -370,4 +536,18 @@ export type WorktreeMergedEvent = z.infer<typeof WorktreeMergedEvent>;
 export type WorktreeRevertedEvent = z.infer<typeof WorktreeRevertedEvent>;
 export type AutoMergeUpdatedEvent = z.infer<typeof AutoMergeUpdatedEvent>;
 export type SkillListEvent = z.infer<typeof SkillListEvent>;
+export type LogsLoadedEvent = z.infer<typeof LogsLoadedEvent>;
+export type MetricsLoadedEvent = z.infer<typeof MetricsLoadedEvent>;
+export type TeamTemplatesLoadedEvent = z.infer<typeof TeamTemplatesLoadedEvent>;
+export type FileListEvent = z.infer<typeof FileListEvent>;
+export type FileContentEvent = z.infer<typeof FileContentEvent>;
+export type GitStatusEvent = z.infer<typeof GitStatusEvent>;
+export type GitLogEvent = z.infer<typeof GitLogEvent>;
+export type GitPushResultEvent = z.infer<typeof GitPushResultEvent>;
+export type PrCreatedEvent = z.infer<typeof PrCreatedEvent>;
+export type PipelinesLoadedEvent = z.infer<typeof PipelinesLoadedEvent>;
+export type PipelineProgressEvent = z.infer<typeof PipelineProgressEvent>;
+export type FileDiffEvent = z.infer<typeof FileDiffEvent>;
+export type SchedulesLoadedEvent = z.infer<typeof SchedulesLoadedEvent>;
+export type CommandsLoadedEvent = z.infer<typeof CommandsLoadedEvent>;
 export type GatewayEvent = z.infer<typeof GatewayEventSchema>;

@@ -5,7 +5,7 @@ import { telegramChannel, setTelegramAgentDefs, syncTelegramHiredAgents } from "
 import { config, CONFIG_DIR, hasSetupRun, reloadConfig, saveConfig } from "./config.js";
 import { runSetup } from "./setup.js";
 import { detectBackends, getBackend, getAllBackends } from "./backends.js";
-import { createOrchestrator, getMergeHistory, previewServer, recordProjectRatings, parseAgentOutput, setSessionDir, setStorageRoot, syncAgentDefs, type Orchestrator, type OrchestratorEvent, type RuntimeOwnerInfo, type TeamPhaseChangedEvent } from "@bit-office/orchestrator";
+import { createOrchestrator, getMergeHistory, previewServer, recordProjectRatings, parseAgentOutput, setSessionDir, setStorageRoot, syncAgentDefs, getAllMetrics, clearMetrics, clearMemory, type Orchestrator, type OrchestratorEvent, type RuntimeOwnerInfo, type TeamPhaseChangedEvent } from "@nvlabs-org/orchestrator";
 import type { Command, GatewayEvent, UserRole } from "@office/shared";
 import type { CommandMeta } from "./transport.js";
 import { DEFAULT_AGENT_DEFS, type AgentDefinition } from "@office/shared";
@@ -14,9 +14,12 @@ import { exec, execFile, execFileSync, execSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, renameSync, unlinkSync, rmdirSync } from "fs";
 import path from "path";
 import os from "os";
+import { isatty } from "tty";
 import { ProcessScanner } from "./process-scanner.js";
 import { ExternalOutputReader } from "./external-output-reader.js";
 import { installFileLogger } from "./file-logger.js";
+import { registerPipeline, markStepRunning, findPipelineStep, handleStepDone, handleStepFailed } from "./pipeline-watcher.js";
+import { initScheduler, createSchedule, deleteSchedule, toggleSchedule, getSchedules, destroyScheduler } from "./task-scheduler.js";
 import { startTunnel, stopTunnel, isTunnelRunning } from "./tunnel.js";
 import { loadTeamState, saveTeamState, clearTeamState, type TeamState, type PersistedAgent, bufferEvent, archiveProject, resetProjectBuffer, setProjectName, listProjects, loadProject, loadProjectBuffer, rateProject } from "./team-state.js";
 import { clearRuntimeState, killPreviousInstances, registerRuntimeState } from "./runtime-state.js";
@@ -165,7 +168,7 @@ function createUniqueProjectDir(workspace: string, baseName: string): string {
 const AGENTS_FILE = path.join(CONFIG_DIR, "data", "agents.json");
 const SKILLS_DIR = path.join(CONFIG_DIR, "skills");
 
-/** Scan ~/.open-office[-dev]/skills/ and return metadata for each skill */
+/** Scan ~/.nvlabs-org[-dev]/skills/ and return metadata for each skill */
 function listSkills(): Array<{ name: string; title: string; isFolder: boolean }> {
   if (!existsSync(SKILLS_DIR)) return [];
   try {
@@ -715,7 +718,7 @@ function handleCommand(parsed: Command, meta: CommandMeta) {
       // Initialize git repo so worktrees can be created for each dev agent
       try {
         execSync("git init", { cwd: projectDir, stdio: "pipe" });
-        execSync("git -c user.name=OpenOffice -c user.email=bot@openoffice.local commit --allow-empty -m 'init'", { cwd: projectDir, stdio: "pipe" });
+        execSync("git -c user.name=NVLabsOrg -c user.email=bot@nvlabs-org.local commit --allow-empty -m 'init'", { cwd: projectDir, stdio: "pipe" });
         console.log(`[Gateway] Initialized git repo in ${projectDir}`);
       } catch (err) {
         console.error(`[Gateway] Failed to init git: ${(err as Error).message}`);
@@ -929,6 +932,420 @@ function handleCommand(parsed: Command, meta: CommandMeta) {
       }
       break;
     }
+    case "GET_LOGS": {
+      try {
+        const logFile = path.join(config.instanceDir, "gateway.log");
+        const maxLines = parsed.lines ?? 200;
+        if (existsSync(logFile)) {
+          const content = readFileSync(logFile, "utf-8");
+          const allLines = content.split("\n");
+          const lines = allLines.slice(-maxLines).filter(Boolean);
+          sendToClient(meta.clientId, { type: "LOGS_LOADED", lines });
+        } else {
+          sendToClient(meta.clientId, { type: "LOGS_LOADED", lines: ["(no log file found)"] });
+        }
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "LOGS_LOADED", lines: [`Error reading logs: ${(e as Error).message}`] });
+      }
+      break;
+    }
+    case "GET_METRICS": {
+      const metrics = getAllMetrics();
+      sendToClient(meta.clientId, { type: "METRICS_LOADED", agents: metrics.agents, updatedAt: metrics.updatedAt });
+      break;
+    }
+    case "CLEAR_METRICS": {
+      clearMetrics();
+      sendToClient(meta.clientId, { type: "METRICS_LOADED", agents: {}, updatedAt: Date.now() });
+      break;
+    }
+    case "CLEAR_MEMORY": {
+      clearMemory();
+      console.log("[Gateway] Agent memory cleared");
+      sendToClient(meta.clientId, { type: "CONFIG_SAVED", success: true, message: "Agent memory cleared" });
+      break;
+    }
+    case "RESET_CONFIG": {
+      try {
+        const configFile = path.join(CONFIG_DIR, "config.json");
+        if (existsSync(configFile)) {
+          unlinkSync(configFile);
+        }
+        reloadConfig();
+        console.log("[Gateway] Config reset to defaults");
+        sendToClient(meta.clientId, { type: "CONFIG_SAVED", success: true, message: "Settings reset. Restart recommended." });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "CONFIG_SAVED", success: false, message: (e as Error).message });
+      }
+      break;
+    }
+    case "SWITCH_WORKSPACE": {
+      const newPath = parsed.path;
+      if (!existsSync(newPath)) {
+        try { mkdirSync(newPath, { recursive: true }); }
+        catch (e) {
+          sendToClient(meta.clientId, { type: "CONFIG_SAVED", success: false, message: `Cannot create workspace: ${(e as Error).message}` });
+          break;
+        }
+      }
+      // Update config + persist
+      config.defaultWorkspace = newPath;
+      // Track recent workspaces (max 10)
+      const recents: string[] = [...(config as any)._recentWorkspaces ?? []];
+      const idx = recents.indexOf(newPath);
+      if (idx !== -1) recents.splice(idx, 1);
+      recents.unshift(newPath);
+      if (recents.length > 10) recents.length = 10;
+      (config as any)._recentWorkspaces = recents;
+      saveConfig({ workspace: newPath, recentWorkspaces: recents });
+      reloadConfig();
+      console.log(`[Gateway] Switched workspace to: ${newPath}`);
+      // Notify client with updated config
+      sendToClient(meta.clientId, { type: "CONFIG_LOADED", workspace: newPath, recentWorkspaces: recents } as any);
+      break;
+    }
+    case "CREATE_SCHEDULE": {
+      const sched = createSchedule({
+        name: parsed.name,
+        agentId: parsed.agentId,
+        prompt: parsed.prompt,
+        intervalMinutes: parsed.intervalMinutes,
+        workDir: parsed.workDir,
+      });
+      sendToClient(meta.clientId, { type: "SCHEDULES_LOADED", schedules: getSchedules().map(s => ({ id: s.id, name: s.name, agentId: s.agentId, prompt: s.prompt, intervalMinutes: s.intervalMinutes, enabled: s.enabled, lastRunAt: s.lastRunAt, nextRunAt: s.nextRunAt, runCount: s.runCount })) });
+      break;
+    }
+    case "DELETE_SCHEDULE": {
+      deleteSchedule(parsed.id);
+      sendToClient(meta.clientId, { type: "SCHEDULES_LOADED", schedules: getSchedules().map(s => ({ id: s.id, name: s.name, agentId: s.agentId, prompt: s.prompt, intervalMinutes: s.intervalMinutes, enabled: s.enabled, lastRunAt: s.lastRunAt, nextRunAt: s.nextRunAt, runCount: s.runCount })) });
+      break;
+    }
+    case "TOGGLE_SCHEDULE": {
+      toggleSchedule(parsed.id);
+      sendToClient(meta.clientId, { type: "SCHEDULES_LOADED", schedules: getSchedules().map(s => ({ id: s.id, name: s.name, agentId: s.agentId, prompt: s.prompt, intervalMinutes: s.intervalMinutes, enabled: s.enabled, lastRunAt: s.lastRunAt, nextRunAt: s.nextRunAt, runCount: s.runCount })) });
+      break;
+    }
+    case "LIST_SCHEDULES": {
+      sendToClient(meta.clientId, { type: "SCHEDULES_LOADED", schedules: getSchedules().map(s => ({ id: s.id, name: s.name, agentId: s.agentId, prompt: s.prompt, intervalMinutes: s.intervalMinutes, enabled: s.enabled, lastRunAt: s.lastRunAt, nextRunAt: s.nextRunAt, runCount: s.runCount })) });
+      break;
+    }
+    case "LIST_COMMANDS": {
+      // Build dynamic command list based on detected backends and capabilities
+      const detected = config.detectedBackends ?? [];
+      const commands: Array<{ command: string; description: string; category: string; argHint?: string }> = [];
+
+      // ── Core Agent Commands ──
+      commands.push(
+        { command: "/cancel", description: "Cancel the current task", category: "Agent" },
+        { command: "/fire", description: "Fire this agent", category: "Agent" },
+        { command: "/retry", description: "Retry the last failed task", category: "Agent" },
+        { command: "/clear", description: "Clear chat messages", category: "Agent" },
+      );
+
+      // ── Project Commands ──
+      commands.push(
+        { command: "/project", description: "Set working directory", category: "Project", argHint: "<path>" },
+        { command: "/git", description: "Show git status", category: "Project" },
+        { command: "/diff", description: "Show last git diff", category: "Project" },
+        { command: "/files", description: "List changed files", category: "Project" },
+        { command: "/push", description: "Push current branch", category: "Project" },
+        { command: "/pr", description: "Create a pull request", category: "Project", argHint: "<title>" },
+      );
+
+      // ── Multi-Agent Commands ──
+      commands.push(
+        { command: "/broadcast", description: "Send message to all agents", category: "Multi-Agent", argHint: "<message>" },
+        { command: "/hire", description: "Hire a new agent", category: "Multi-Agent", argHint: "<role>" },
+        { command: "/hireteam", description: "Hire a full team", category: "Multi-Agent" },
+        { command: "/switch", description: "Switch agent backend", category: "Multi-Agent", argHint: detected.join("|") || "<backend>" },
+      );
+
+      // ── Backend-specific commands based on what's detected ──
+      if (detected.includes("claude")) {
+        commands.push(
+          { command: "/compact", description: "Compact context (Claude)", category: "Claude" },
+          { command: "/model", description: "Switch Claude model", category: "Claude", argHint: "sonnet|opus|haiku" },
+          { command: "/permissions", description: "Show Claude permission status", category: "Claude" },
+        );
+      }
+      if (detected.includes("gemini")) {
+        commands.push(
+          { command: "/model", description: "Switch Gemini model", category: "Antigravity", argHint: "pro|flash" },
+        );
+      }
+      if (detected.includes("kiro")) {
+        commands.push(
+          { command: "/model", description: "Switch Kiro model", category: "Kiro", argHint: "<model-name>" },
+          { command: "/spec", description: "Start a spec session (Kiro)", category: "Kiro" },
+        );
+      }
+      if (detected.includes("aider")) {
+        commands.push(
+          { command: "/add", description: "Add files to context (Aider)", category: "Aider", argHint: "<file>" },
+          { command: "/drop", description: "Remove files from context (Aider)", category: "Aider", argHint: "<file>" },
+          { command: "/model", description: "Switch Aider model", category: "Aider", argHint: "<model>" },
+        );
+      }
+
+      // ── Tools & UI Commands ──
+      commands.push(
+        { command: "/preview", description: "Open preview URL", category: "Tools" },
+        { command: "/export", description: "Export chat as markdown", category: "Tools" },
+        { command: "/pipeline", description: "Open pipeline builder", category: "Tools" },
+        { command: "/settings", description: "Open settings", category: "Tools" },
+        { command: "/schedule", description: "Create a scheduled task", category: "Tools", argHint: "<minutes> <prompt>" },
+      );
+
+      // ── Info Commands ──
+      commands.push(
+        { command: "/help", description: "Show all commands", category: "Info" },
+        { command: "/status", description: "Refresh agent status", category: "Info" },
+        { command: "/metrics", description: "Open metrics panel", category: "Info" },
+        { command: "/backends", description: `Available: ${detected.join(", ") || "none detected"}`, category: "Info" },
+      );
+
+      sendToClient(meta.clientId, { type: "COMMANDS_LOADED", commands });
+      break;
+    }
+    case "SAVE_TEAM_TEMPLATE": {
+      const templates = config.teamTemplates ?? [];
+      const existing = templates.findIndex(t => t.name === parsed.name);
+      const entry = { name: parsed.name, members: parsed.members, workDir: parsed.workDir };
+      if (existing >= 0) templates[existing] = entry;
+      else templates.push(entry);
+      saveConfig({ teamTemplates: templates });
+      config.teamTemplates = templates;
+      sendToClient(meta.clientId, { type: "TEAM_TEMPLATES_LOADED", templates });
+      break;
+    }
+    case "LIST_TEAM_TEMPLATES": {
+      sendToClient(meta.clientId, { type: "TEAM_TEMPLATES_LOADED", templates: config.teamTemplates ?? [] });
+      break;
+    }
+    case "DELETE_TEAM_TEMPLATE": {
+      const templates = (config.teamTemplates ?? []).filter(t => t.name !== parsed.name);
+      saveConfig({ teamTemplates: templates });
+      config.teamTemplates = templates;
+      sendToClient(meta.clientId, { type: "TEAM_TEMPLATES_LOADED", templates });
+      break;
+    }
+    case "LIST_FILES": {
+      try {
+        const targetPath = path.resolve(parsed.path || config.defaultWorkspace);
+        // Security: must be inside workspace or home directory
+        const home = os.homedir();
+        if (!targetPath.startsWith(config.defaultWorkspace) && !targetPath.startsWith(home)) {
+          sendToClient(meta.clientId, { type: "FILE_LIST", path: targetPath, entries: [] });
+          break;
+        }
+        const maxDepth = parsed.depth ?? 2;
+        const entries: Array<{ name: string; path: string; isDir: boolean; size?: number }> = [];
+        function walk(dir: string, depth: number) {
+          if (depth > maxDepth || entries.length > 500) return;
+          try {
+            const items = readdirSync(dir, { withFileTypes: true });
+            for (const item of items) {
+              if (item.name.startsWith(".") || item.name === "node_modules" || item.name === ".next") continue;
+              const fullPath = path.join(dir, item.name);
+              const isDir = item.isDirectory();
+              let size: number | undefined;
+              if (!isDir) {
+                try { size = require("fs").statSync(fullPath).size; } catch { /* skip */ }
+              }
+              entries.push({ name: item.name, path: fullPath, isDir, size });
+              if (isDir && depth < maxDepth) walk(fullPath, depth + 1);
+            }
+          } catch { /* permission denied */ }
+        }
+        walk(targetPath, 0);
+        sendToClient(meta.clientId, { type: "FILE_LIST", path: targetPath, entries });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "FILE_LIST", path: parsed.path, entries: [] });
+      }
+      break;
+    }
+    case "READ_FILE": {
+      try {
+        const filePath = path.resolve(parsed.path);
+        const home = os.homedir();
+        if (!filePath.startsWith(config.defaultWorkspace) && !filePath.startsWith(home)) {
+          sendToClient(meta.clientId, { type: "FILE_CONTENT", path: filePath, content: "(access denied)", truncated: false });
+          break;
+        }
+        if (!existsSync(filePath)) {
+          sendToClient(meta.clientId, { type: "FILE_CONTENT", path: filePath, content: "(file not found)", truncated: false });
+          break;
+        }
+        const stat = require("fs").statSync(filePath);
+        const maxSize = 100 * 1024; // 100KB max
+        if (stat.size > maxSize) {
+          const content = readFileSync(filePath, "utf-8").slice(0, maxSize);
+          sendToClient(meta.clientId, { type: "FILE_CONTENT", path: filePath, content, truncated: true });
+        } else {
+          const content = readFileSync(filePath, "utf-8");
+          sendToClient(meta.clientId, { type: "FILE_CONTENT", path: filePath, content, truncated: false });
+        }
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "FILE_CONTENT", path: parsed.path, content: `Error: ${(e as Error).message}`, truncated: false });
+      }
+      break;
+    }
+    case "GET_GIT_STATUS": {
+      try {
+        const cwd = parsed.path || config.defaultWorkspace;
+        const branch = execSync("git branch --show-current", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+        const statusRaw = execSync("git status --porcelain", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+        const changes = statusRaw ? statusRaw.split("\n").map(line => ({
+          status: line.slice(0, 2).trim(),
+          file: line.slice(3),
+        })) : [];
+        // Ahead/behind
+        let ahead = 0, behind = 0;
+        try {
+          const abRaw = execSync("git rev-list --left-right --count HEAD...@{upstream}", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+          const [a, b] = abRaw.split(/\s+/);
+          ahead = parseInt(a) || 0;
+          behind = parseInt(b) || 0;
+        } catch { /* no upstream */ }
+        sendToClient(meta.clientId, { type: "GIT_STATUS", branch, changes, ahead, behind });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "GIT_STATUS", branch: "(not a git repo)", changes: [] });
+      }
+      break;
+    }
+    case "GET_GIT_LOG": {
+      try {
+        const cwd = parsed.path || config.defaultWorkspace;
+        const count = parsed.count ?? 20;
+        const logRaw = execSync(`git log --oneline --format="%H|||%s|||%an|||%ci" -${count}`, { cwd, encoding: "utf-8", timeout: 10000 }).trim();
+        const commits = logRaw ? logRaw.split("\n").map(line => {
+          const [hash, message, author, date] = line.split("|||");
+          return { hash: hash?.slice(0, 8) ?? "", message: message ?? "", author: author ?? "", date: date ?? "" };
+        }) : [];
+        sendToClient(meta.clientId, { type: "GIT_LOG", commits });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "GIT_LOG", commits: [] });
+      }
+      break;
+    }
+    case "PUSH_BRANCH": {
+      try {
+        const cwd = parsed.path || config.defaultWorkspace;
+        const remote = parsed.remote || config.githubRemote || "origin";
+        const branch = parsed.branch || execSync("git branch --show-current", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+        execSync(`git push ${remote} ${branch}`, { cwd, encoding: "utf-8", timeout: 30000 });
+        sendToClient(meta.clientId, { type: "GIT_PUSH_RESULT", success: true, message: `Pushed ${branch} to ${remote}`, branch });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "GIT_PUSH_RESULT", success: false, message: (e as Error).message?.slice(0, 300) ?? "Push failed" });
+      }
+      break;
+    }
+    case "CREATE_PR": {
+      try {
+        const cwd = parsed.path || config.defaultWorkspace;
+        const branch = parsed.branch || execSync("git branch --show-current", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+        const base = parsed.base || "main";
+        const title = parsed.title;
+        const body = parsed.body || "";
+        // Try gh CLI first (most reliable)
+        let prUrl = "";
+        try {
+          const result = execSync(`gh pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --head ${branch} --base ${base}`, { cwd, encoding: "utf-8", timeout: 30000 });
+          prUrl = result.trim();
+        } catch (ghErr) {
+          // Fallback: use GitHub API with token
+          if (config.githubToken) {
+            const remoteUrl = execSync("git remote get-url origin", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+            const repoMatch = remoteUrl.match(/github\.com[:/](.+?)(?:\.git)?$/);
+            if (repoMatch) {
+              const repo = repoMatch[1];
+              const clientId = meta.clientId;
+              fetch(`https://api.github.com/repos/${repo}/pulls`, {
+                method: "POST",
+                headers: { Authorization: `token ${config.githubToken}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ title, body, head: branch, base }),
+              }).then(res => res.json()).then(data => {
+                const prUrl = data.html_url ?? "";
+                sendToClient(clientId, { type: "PR_CREATED", success: !!prUrl, url: prUrl, message: prUrl ? `PR created: ${prUrl}` : (data.message || "API error") });
+              }).catch(err => {
+                sendToClient(clientId, { type: "PR_CREATED", success: false, message: err.message ?? "API request failed" });
+              });
+              break;
+            } else { throw new Error("Could not parse repo from remote URL"); }
+          } else { throw ghErr; }
+        }
+        sendToClient(meta.clientId, { type: "PR_CREATED", success: true, url: prUrl, message: `PR created: ${prUrl}` });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "PR_CREATED", success: false, message: (e as Error).message?.slice(0, 300) ?? "PR creation failed" });
+      }
+      break;
+    }
+    case "GET_FILE_DIFF": {
+      try {
+        const cwd = parsed.path || config.defaultWorkspace;
+        const file = parsed.file;
+        const diff = execSync(`git diff -- "${file}"`, { cwd, encoding: "utf-8", timeout: 10000 });
+        // If no staged diff, try unstaged + untracked
+        const result = diff || execSync(`git diff HEAD -- "${file}"`, { cwd, encoding: "utf-8", timeout: 10000 });
+        sendToClient(meta.clientId, { type: "FILE_DIFF", file, diff: result || "(no changes)" });
+      } catch (e) {
+        sendToClient(meta.clientId, { type: "FILE_DIFF", file: parsed.file, diff: `Error: ${(e as Error).message?.slice(0, 300) ?? "diff failed"}` });
+      }
+      break;
+    }
+    case "SAVE_PIPELINE": {
+      const pipelines = config.pipelines ?? [];
+      const existing = pipelines.findIndex(p => p.name === parsed.name);
+      const entry = { name: parsed.name, steps: parsed.steps };
+      if (existing >= 0) pipelines[existing] = entry;
+      else pipelines.push(entry);
+      saveConfig({ pipelines });
+      config.pipelines = pipelines;
+      sendToClient(meta.clientId, { type: "PIPELINES_LOADED", pipelines });
+      break;
+    }
+    case "LIST_PIPELINES": {
+      sendToClient(meta.clientId, { type: "PIPELINES_LOADED", pipelines: config.pipelines ?? [] });
+      break;
+    }
+    case "RUN_PIPELINE": {
+      const pipeline = (config.pipelines ?? []).find(p => p.name === parsed.name);
+      if (!pipeline) {
+        console.log(`[Gateway] Pipeline "${parsed.name}" not found`);
+        break;
+      }
+      console.log(`[Gateway] Running pipeline "${parsed.name}" (${pipeline.steps.length} steps)`);
+      const userInput = parsed.input ?? "";
+      const workDir = parsed.workDir || config.defaultWorkspace;
+
+      // Register pipeline for completion tracking
+      const pipelineKey = registerPipeline(parsed.name, pipeline.steps, userInput, workDir);
+
+      // Execute root steps (those with no dependencies)
+      for (const step of pipeline.steps) {
+        if (!step.dependsOn || step.dependsOn.length === 0) {
+          const prompt = step.prompt.replace(/\{\{input\}\}/g, userInput);
+          // Find or create an agent matching the role
+          const agents = orc.getAllAgents();
+          let agentId: string | undefined = agents.find(a => a.role.toLowerCase().includes(step.agentRole.toLowerCase()))?.agentId;
+          if (!agentId) {
+            // Auto-create from defaults
+            const def = agentDefs.find(d => d.role.toLowerCase().includes(step.agentRole.toLowerCase()) || d.skills.toLowerCase().includes(step.agentRole.toLowerCase()));
+            if (def) {
+              agentId = `agent-${nanoid(6)}`;
+              orc.createAgent({ agentId, name: def.name, role: `${def.role} — ${def.skills}`, personality: def.personality, backend: config.defaultBackend, palette: def.palette, workDir });
+            }
+          }
+          if (agentId) {
+            const taskId = nanoid();
+            markStepRunning(pipelineKey, step.id, agentId, taskId);
+            orc.runTask(agentId, taskId, prompt, { repoPath: workDir });
+            publishEvent({ type: "PIPELINE_PROGRESS", pipelineName: parsed.name, stepId: step.id, status: "running" });
+          }
+        }
+      }
+      break;
+    }
     case "SUGGEST": {
       // Rate limit: 1 per 3 seconds per client
       const lastSuggest = suggestRateLimit.get(meta.clientId) ?? 0;
@@ -990,6 +1407,17 @@ function handleCommand(parsed: Command, meta: CommandMeta) {
         tunnelBaseUrl: config.tunnelBaseUrl ?? "",
         tunnelToken: config.tunnelToken ? config.tunnelToken.slice(0, 10) + "..." : "",
         tunnelRunning: isTunnelRunning(),
+        defaultBackend: config.defaultBackend,
+        defaultModels: config.defaultModels,
+        sandboxMode: config.sandboxMode,
+        detectedBackends: config.detectedBackends,
+        machineId: config.machineId,
+        workspace: config.defaultWorkspace,
+        dataDir: CONFIG_DIR,
+        webhooks: config.webhooks ?? [],
+        githubToken: config.githubToken ? config.githubToken.slice(0, 6) + "..." : undefined,
+        githubRemote: config.githubRemote ?? "origin",
+        recentWorkspaces: (config as any)._recentWorkspaces ?? [],
       });
       break;
     }
@@ -1013,6 +1441,30 @@ function handleCommand(parsed: Command, meta: CommandMeta) {
         }
         if (parsed.tunnelBaseUrl !== undefined) updates.tunnelBaseUrl = parsed.tunnelBaseUrl || undefined;
         if (parsed.tunnelToken !== undefined) updates.tunnelToken = parsed.tunnelToken || undefined;
+        if (parsed.defaultBackend !== undefined) {
+          updates.defaultBackend = parsed.defaultBackend;
+          config.defaultBackend = parsed.defaultBackend;
+        }
+        if (parsed.defaultModels !== undefined) {
+          updates.defaultModels = parsed.defaultModels;
+          config.defaultModels = parsed.defaultModels;
+        }
+        if (parsed.sandboxMode !== undefined) {
+          updates.sandboxMode = parsed.sandboxMode;
+          config.sandboxMode = parsed.sandboxMode;
+        }
+        if (parsed.webhooks !== undefined) {
+          updates.webhooks = parsed.webhooks;
+          config.webhooks = parsed.webhooks;
+        }
+        if (parsed.githubToken !== undefined) {
+          updates.githubToken = parsed.githubToken || undefined;
+          config.githubToken = parsed.githubToken || undefined;
+        }
+        if (parsed.githubRemote !== undefined) {
+          updates.githubRemote = parsed.githubRemote || "origin";
+          config.githubRemote = parsed.githubRemote || "origin";
+        }
         // Clear legacy field to prevent fallback reconnection
         updates.telegramBotTokens = undefined;
         saveConfig(updates);
@@ -1266,6 +1718,18 @@ async function main() {
   // Restore project event buffer from disk (survives gateway restarts)
   loadProjectBuffer();
 
+  // Initialize task scheduler (cron-lite)
+  initScheduler((schedule) => {
+    const taskId = `sched-${schedule.id}-${Date.now()}`;
+    const agent = orc.getAgent(schedule.agentId);
+    if (!agent) {
+      console.log(`[Scheduler] Agent "${schedule.agentId}" not found for schedule "${schedule.name}" — skipping`);
+      return;
+    }
+    console.log(`[Scheduler] Dispatching task for "${schedule.name}" → agent "${agent.name}"`);
+    orc.runTask(schedule.agentId, taskId, schedule.prompt, { repoPath: schedule.workDir || config.defaultWorkspace });
+  });
+
   // Restore team state from disk (agents, team structure, phase)
   const savedState = loadTeamState();
   if (savedState.agents.length > 0) {
@@ -1410,6 +1874,52 @@ async function main() {
   orc.on("task:result-returned", forwardEvent);
   orc.on("team:phase", forwardEvent);
 
+  // ── Pipeline Completion Watcher ──
+  // When a task finishes, check if it belongs to a tracked pipeline step and advance.
+  orc.on("task:done", (e) => {
+    const match = findPipelineStep(e.agentId, e.taskId);
+    if (!match) return; // not a pipeline task
+    const resultSummary = e.result?.summary ?? e.result?.diffStat ?? "completed";
+    handleStepDone(
+      match.pipelineKey,
+      match.stepId,
+      resultSummary,
+      // Dispatch callback: start the newly unblocked step
+      (pipeline, step, prompt) => {
+        const agents = orc.getAllAgents();
+        let agentId: string | undefined = agents.find(a => a.role.toLowerCase().includes(step.agentRole.toLowerCase()))?.agentId;
+        if (!agentId) {
+          const def = agentDefs.find(d => d.role.toLowerCase().includes(step.agentRole.toLowerCase()) || d.skills.toLowerCase().includes(step.agentRole.toLowerCase()));
+          if (def) {
+            agentId = `agent-${nanoid(6)}`;
+            orc.createAgent({ agentId, name: def.name, role: `${def.role} — ${def.skills}`, personality: def.personality, backend: config.defaultBackend, palette: def.palette, workDir: pipeline.workDir });
+          }
+        }
+        if (agentId) {
+          const taskId = nanoid();
+          markStepRunning(match.pipelineKey, step.id, agentId, taskId);
+          orc.runTask(agentId, taskId, prompt, { repoPath: pipeline.workDir });
+        }
+      },
+      // Progress callback: emit event to UI
+      (pipelineName, stepId, status, result) => {
+        publishEvent({ type: "PIPELINE_PROGRESS", pipelineName, stepId, status, result });
+      },
+    );
+  });
+  orc.on("task:failed", (e) => {
+    const match = findPipelineStep(e.agentId, e.taskId);
+    if (!match) return;
+    handleStepFailed(
+      match.pipelineKey,
+      match.stepId,
+      e.error ?? "Unknown error",
+      (pipelineName, stepId, status, result) => {
+        publishEvent({ type: "PIPELINE_PROGRESS", pipelineName, stepId, status, result });
+      },
+    );
+  });
+
   // Start external output reader
   outputReader = new ExternalOutputReader();
   outputReader.setOnStatus((agentId, status) => {
@@ -1522,6 +2032,10 @@ async function main() {
   // Start transports (WS + optional Ably)
   await initTransports(handleCommand);
 
+  // Initialize REST API
+  const { initApiRoutes } = await import("./api-routes.js");
+  initApiRoutes(orc, handleCommand);
+
   // Start Cloudflare Tunnel if configured
   startTunnel();
 
@@ -1535,8 +2049,13 @@ async function main() {
     execFile("open", [url]);
   }
 
-  // Listen for stdin commands
-  if (process.stdin.isTTY) {
+  // Listen for stdin commands.
+  // Probe with tty.isatty(0) rather than `process.stdin.isTTY`: reading the
+  // `process.stdin` getter lazily initialises the fd-0 handle, which blocks
+  // forever on Windows when the gateway shares a console with a sibling process
+  // (`pnpm dev` starts it next to the web app). That froze the event loop right
+  // after startup, leaving the port open but every request unanswered.
+  if (isatty(0)) {
     process.stdin.setEncoding("utf-8");
     process.stdin.on("data", (data: string) => {
       const cmd = data.trim().toLowerCase();

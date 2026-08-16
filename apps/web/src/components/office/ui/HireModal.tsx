@@ -247,7 +247,7 @@ function HireModal({ agentDefs, onHire, onCreate, onEdit, onDelete, onClose, ass
                     type="text"
                     value={workDir}
                     onChange={(e) => !dirLocked && setWorkDir(e.target.value)}
-                    placeholder="~/.open-office/projects"
+                    placeholder="~/.nvlabs-org/projects"
                     style={{ flex: 1, opacity: dirLocked ? 0.6 : 1 }}
                     readOnly={dirLocked}
                   />

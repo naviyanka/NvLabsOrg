@@ -6,13 +6,14 @@ import { execFile } from "child_process";
  * Ambiguous names (agent, pi, sp) are excluded — they require argv pattern matching
  * handled separately in matchCommand() to avoid false positives.
  */
-const KNOWN_COMMANDS = ["claude", "codex", "gemini", "aider", "opencode", "copilot"];
+const KNOWN_COMMANDS = ["claude", "codex", "agy", "kiro-cli", "aider", "opencode", "copilot"];
 
 /** Map command name → backend ID (matches BACKEND_OPTIONS in the UI) */
 const COMMAND_TO_BACKEND: Record<string, string> = {
   claude: "claude",
   codex: "codex",
-  gemini: "gemini",
+  agy: "gemini",
+  "kiro-cli": "kiro",
   aider: "aider",
   opencode: "opencode",
   copilot: "copilot",

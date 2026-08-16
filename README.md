@@ -1,13 +1,13 @@
 <div align="center">
 
-# Open Office
+# NVLabs Org
 
 ### A visible workspace for AI agents to collaborate as a single team.
 
-[![npm version](https://img.shields.io/npm/v/open-office?color=cb3837&logo=npm)](https://www.npmjs.com/package/open-office)
+[![npm version](https://img.shields.io/npm/v/nvlabs-org?color=cb3837&logo=npm)](https://www.npmjs.com/package/nvlabs-org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/longyangxi/open-office/pulls)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/longyangxi/nvlabs-org/pulls)
 
 **Supports Claude, Codex, Gemini, Copilot, Cursor, Aider, OpenCode, Pi & Sapling — one team 🚀**
 
@@ -34,7 +34,7 @@
 ## Quick Start
 
 ```bash
-npx bit-office
+npx nvlabs-org
 ```
 
 ## Learn More
@@ -54,15 +54,15 @@ npx bit-office
 ### Setup
 
 ```bash
-git clone https://github.com/longyangxi/open-office.git
-cd open-office
+git clone https://github.com/longyangxi/nvlabs-org.git
+cd nvlabs-org
 pnpm install
 pnpm dev
 ```
 
 ## Desktop App (Tauri)
 
-Open Office also ships as a native **macOS desktop app** powered by [Tauri](https://tauri.app). 
+NVLabs Org also ships as a native **macOS desktop app** powered by [Tauri](https://tauri.app). 
 
 ### Prerequisites
 
@@ -82,15 +82,15 @@ pnpm dev:desktop
 pnpm build:desktop
 ```
 
-Produces `Open Office.app` and `.dmg` at:
+Produces `NVLabs Org.app` and `.dmg` at:
 ```
-apps/desktop/src-tauri/target/release/bundle/macos/Open Office.app
-apps/desktop/src-tauri/target/release/bundle/dmg/Open Office_0.1.0_aarch64.dmg
+apps/desktop/src-tauri/target/release/bundle/macos/NVLabs Org.app
+apps/desktop/src-tauri/target/release/bundle/dmg/NVLabs Org_0.1.0_aarch64.dmg
 ```
 
 ## Supported Backends
 
-Open Office auto-detects installed AI CLIs at startup. Each backend has its own instruction file convention and capability set.
+NVLabs Org auto-detects installed AI CLIs at startup. Each backend has its own instruction file convention and capability set.
 
 | Backend | Command | Stability | Guard | Instruction File | Resume | Structured Output | Tested |
 |---|---|---|---|---|---|---|---|
@@ -111,7 +111,7 @@ Open Office auto-detects installed AI CLIs at startup. Each backend has its own 
 ## Architecture
 
 ```
-open-office/
+nvlabs-org/
 ├── apps/
 │   ├── web/            # Next.js PWA + PixiJS pixel office + control UI
 │   ├── gateway/        # Runtime daemon: events, channels, policy, orchestration
@@ -135,7 +135,7 @@ open-office/
 
 ## Contributing
 
-Issues and PRs are welcome. If you're exploring AI-native dev tooling, workflows, or interfaces, Open Office is a great playground for experiments.
+Issues and PRs are welcome. If you're exploring AI-native dev tooling, workflows, or interfaces, NVLabs Org is a great playground for experiments.
 
 ## Acknowledgments
 
@@ -149,6 +149,6 @@ Pixel office art inspired by [pixel-agents](https://github.com/pablodelucca/pixe
 
 <div align="center">
 
-**If Open Office helps your workflow, consider giving it a star!**
+**If NVLabs Org helps your workflow, consider giving it a star!**
 
 </div>

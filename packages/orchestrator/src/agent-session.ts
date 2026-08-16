@@ -8,9 +8,35 @@ import { parseAgentOutput } from "./output-parser.js";
 import { nanoid } from "nanoid";
 import { removeWorktree, getIsolatedGitEnv } from "./worktree.js";
 import type { AIBackend } from "./ai-backend.js";
+
+/**
+ * Kill a process and its entire tree. On POSIX with a detached process group
+ * we can signal the negative PID. On Windows (not detached) we use taskkill /T.
+ */
+function killTree(proc: ChildProcess, signal: NodeJS.Signals = "SIGKILL"): void {
+  const pid = proc.pid;
+  if (!pid) { try { proc.kill(signal); } catch { /* already dead */ } return; }
+  if (process.platform === "win32") {
+    try { execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore", timeout: 5000 }); } catch {
+      try { proc.kill(signal); } catch { /* already dead */ }
+    }
+  } else {
+    try { process.kill(-pid, signal); } catch {
+      try { proc.kill(signal); } catch { /* already dead */ }
+    }
+  }
+}
 import type { AgentStatus, TaskResultPayload, OrchestratorEvent, LogActivityEvent } from "./types.js";
 import type { TemplateName } from "./prompt-templates.js";
 import { getMemoryContext, commitSession, buildRecoveryContext, getRecoveryString, saveSessionHistory, updateWorkState, clearAgentWorkState } from "./memory.js";
+
+/* ── ANSI escape code stripper ──────────────────────────────────── */
+
+// Matches all ANSI escape sequences: CSI (colors, cursor), OSC, and simple escapes
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[^[(\x1b]/g;
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_RE, "");
+}
 
 /* ── Tool activity summarizer ──────────────────────────────────── */
 
@@ -40,9 +66,9 @@ function summarizeToolUse(name: string, input: Record<string, unknown> | undefin
 
 /* ── Persist session IDs + recovery context across restarts ───────── */
 
-// RecoveryContext is now defined in @bit-office/memory (packages/memory/src/types.ts).
+// RecoveryContext is now defined in @nvlabs-org/memory (packages/memory/src/types.ts).
 // It includes structured SessionSummary instead of raw recentMessages.
-import type { RecoveryContext } from "@bit-office/memory";
+import type { RecoveryContext } from "@nvlabs-org/memory";
 
 /** Disk format: value is either a legacy string (sessionId) or the new object */
 interface SessionEntry {
@@ -55,10 +81,10 @@ type SessionMap = Record<string, string | SessionEntry>;
 /**
  * Session file path is instance-scoped to prevent cross-instance contamination.
  * Set via setSessionDir() from the gateway using its instanceDir config.
- * Falls back to ~/.open-office[-dev] for backwards compatibility.
+ * Falls back to ~/.nvlabs-org[-dev] for backwards compatibility.
  */
 let _sessionDir: string = path.join(homedir(),
-  process.env.NODE_ENV === "development" ? ".open-office-dev" : ".open-office");
+  process.env.NODE_ENV === "development" ? ".nvlabs-org-dev" : ".nvlabs-org");
 
 export function setSessionDir(dir: string) {
   _sessionDir = dir;
@@ -472,7 +498,8 @@ export class AgentSession {
 
       // Log which binary + env state
       try {
-        const whichPath = execSync(`which ${this.backend.command}`, { env: cleanEnv, encoding: "utf-8", timeout: 3000 }).trim();
+        const finder = process.platform === "win32" ? "where" : "which";
+        const whichPath = execSync(`${finder} ${this.backend.command}`, { env: cleanEnv, encoding: "utf-8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).trim().split(/\r?\n/)[0];
         console.log(`[Agent ${this.name}] Binary: ${whichPath}, CLAUDECODE=${cleanEnv.CLAUDECODE ?? "unset"}, ENTRYPOINT=${cleanEnv.CLAUDE_CODE_ENTRYPOINT ?? "unset"}`);
       } catch { /* ignore */ }
       console.log(`[Agent ${this.name}] Spawning: ${this.backend.command} ${args.map(a => a.length > 80 ? a.slice(0, 80) + '...' : a).join(' ')}`);
@@ -483,13 +510,18 @@ export class AgentSession {
         throw Object.assign(new Error(`Working directory "${cwd}" does not exist`), { code: "ECWDMISSING" });
       }
 
-      // stdin MUST be "ignore" — "pipe" causes Claude Code to hang waiting for input
-      // detached: true creates a new process group so we can kill the entire tree on cancel
+      // stdin MUST be "ignore" — "pipe" causes Claude Code to hang waiting for input.
+      // detached: true creates a new process group so we can kill the entire tree on cancel.
+      // On Windows, detached + stdio:["ignore",...] gives the child an invalid stdin handle
+      // (OS error 6) because the new console has no real input. Use windowsHide instead,
+      // which hides the window without creating a broken console handle.
+      const isWin = process.platform === "win32";
       this.process = spawn(this.backend.command, args, {
         cwd,
         env: cleanEnv,
         stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
+        detached: !isWin,
+        windowsHide: true,
       });
 
       // Task timeout: only for team members (prevent blocking the team flow).
@@ -503,7 +535,7 @@ export class AgentSession {
           if (this.process?.pid) {
             console.log(`[Agent ${this.agentId}] Task timed out after ${TASK_TIMEOUT_MS / 1000}s, killing`);
             this.timedOut = true;
-            try { process.kill(-this.process.pid, "SIGKILL"); } catch { this.process.kill("SIGKILL"); }
+            killTree(this.process, "SIGKILL");
           }
         }, TASK_TIMEOUT_MS);
       }
@@ -545,7 +577,8 @@ export class AgentSession {
       // Handle a line of plain text output (delegation detection + logging)
       // fromStreamJson: true when text comes from stream-json blocks (skip verb/path noise filters)
       const handleTextLine = (text: string, fromStreamJson = false) => {
-        const lines = text.split("\n").filter((l) => l.trim());
+        const cleaned = stripAnsi(text);
+        const lines = cleaned.split("\n").filter((l) => l.trim());
         const visibleLines: string[] = [];
         for (const line of lines) {
           const trimmed = line.trim();
@@ -609,6 +642,45 @@ export class AgentSession {
                 saveSessionId(this.agentId, msg.session_id);
                 console.log(`[Agent ${this.name}] Session ID: ${msg.session_id}`);
               }
+
+              // ── Antigravity / Kiro stream-json format ──────────────────────
+              // Events: {"event":"init", "conversation_id": "..."}, 
+              //         {"event":"step_update", "step_update": {...}},
+              //         {"event":"result", "result": {"response": "...", "status": "...", "usage": {...}}}
+              if (msg.event === "init" && msg.conversation_id) {
+                this.sessionId = msg.conversation_id;
+                saveSessionId(this.agentId, msg.conversation_id);
+                console.log(`[Agent ${this.name}] Session ID: ${msg.conversation_id}`);
+                continue;
+              }
+              if (msg.event === "step_update") {
+                // step_update events indicate progress but don't carry response text
+                continue;
+              }
+              if (msg.event === "result" && msg.result) {
+                const res = msg.result;
+                if (res.response) {
+                  this.stdoutBuffer += stripAnsi(res.response) + "\n";
+                  handleTextLine(res.response, true);
+                  this.persistWorkState("running");
+                }
+                if (res.usage) {
+                  const usage = res.usage;
+                  const turnIn = (usage.input_tokens ?? 0) + (usage.cache_read_tokens ?? 0);
+                  const turnOut = usage.output_tokens ?? 0;
+                  this.taskInputTokens += turnIn;
+                  this.taskOutputTokens += turnOut;
+                  this.onEvent({
+                    type: "token:update",
+                    agentId: this.agentId,
+                    inputTokens: this.taskInputTokens,
+                    outputTokens: this.taskOutputTokens,
+                  });
+                }
+                continue;
+              }
+
+              // ── Claude Code stream-json format ─────────────────────────────
               if (msg.type === "assistant" && msg.message?.content) {
                 // Live token usage from per-turn usage (dedup same-turn repeats)
                 if (msg.message.usage) {
@@ -668,7 +740,7 @@ export class AgentSession {
                     }
                   }
                 }
-                // (conversationLog removed — recovery context now uses @bit-office/memory's
+                // (conversationLog removed — recovery context now uses @nvlabs-org/memory's
                 //  structured SessionSummary instead of raw message fragments)
               } else if (msg.type === "result") {
                 // Result message: authoritative session total from msg.usage
@@ -707,7 +779,7 @@ export class AgentSession {
           }
 
           // Plain text fallback (non-Claude backends)
-          this.stdoutBuffer += line + "\n";
+          this.stdoutBuffer += stripAnsi(line) + "\n";
           handleTextLine(line);
           this.persistWorkState("running");
         }
@@ -726,13 +798,14 @@ export class AgentSession {
 
       this.process.on("close", (code) => {
         const agentPid = this.process?.pid;
+        const agentProc = this.process;
         this.process = null;
         if (this.taskTimeout) { clearTimeout(this.taskTimeout); this.taskTimeout = null; }
 
         // Kill the agent's process group to clean up any orphan child processes
         // (e.g., dev servers the agent may have started despite prompt instructions)
-        if (agentPid) {
-          try { process.kill(-agentPid, "SIGTERM"); } catch { /* group already dead */ }
+        if (agentPid && agentProc) {
+          killTree(agentProc, "SIGTERM");
         }
 
         // Flush any remaining data in the JSON line buffer (last line without trailing newline)
@@ -788,7 +861,7 @@ export class AgentSession {
             const { summary, fullOutput, changedFiles, entryFile, projectDir, previewCmd, previewPort } = this.extractResult();
             this._lastFullOutput = fullOutput;
 
-            // Commit session to @bit-office/memory: extracts structured summary,
+            // Commit session to @nvlabs-org/memory: extracts structured summary,
             // saves session history, and extracts reusable agent facts.
             // This replaces the old saveRecoveryContext + raw recentMessages approach.
             commitSession({
@@ -1058,9 +1131,7 @@ export class AgentSession {
       this.onTaskComplete?.(this.agentId, cancelledTaskId, "Task cancelled by user", false);
 
       const pgid = this.process.pid;
-      try { process.kill(-pgid, "SIGKILL"); } catch {
-        try { this.process.kill("SIGKILL"); } catch { /* already dead */ }
-      }
+      killTree(this.process, "SIGKILL");
     }
 
     // Always force UI reset — even if process was already gone.
@@ -1102,11 +1173,8 @@ export class AgentSession {
     }
 
     if (this.process?.pid) {
-      const pgid = this.process.pid;
       // Use SIGKILL — CLI agents like codex/claude ignore SIGTERM
-      try { process.kill(-pgid, "SIGKILL"); } catch {
-        try { this.process.kill("SIGKILL"); } catch { /* already dead */ }
-      }
+      killTree(this.process, "SIGKILL");
       this.process = null;
     }
     this.pendingApprovals.clear();

@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+# esbuild: native binary needed by tsx/tsup (gateway dev + build)
+# sharp: native binary needed by Next.js image optimization
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - concurrently@10.0.5

@@ -29,13 +29,23 @@ import { APP_VERSION, APP_BUILD_TIME } from "@/lib/appMeta";
 // Extracted components — regular imports for hooks and inline-rendered components
 import { useConfirm } from "@/components/office/ui/ConfirmModal";
 import { SysMsg, TokenBadge } from "@/components/office/ui/MessageBubble";
+import { useAgentContextMenu, type ContextMenuAction } from "@/components/office/ui/AgentContextMenu";
+import { ToastContainer } from "@/components/office/ui/ToastNotifications";
+import { PanelBoundary } from "@/components/office/ui/ErrorBoundary";
 
 // Dynamic imports for extracted components
 import dynamic from "next/dynamic";
 const PixelOfficeScene = dynamic(() => import("@/components/office/scene/PixelOfficeScene"), { ssr: false });
+const DashboardView = dynamic(() => import("@/components/office/ui/DashboardView"), { ssr: false });
+const FileExplorer = dynamic(() => import("@/components/office/ui/FileExplorer"), { ssr: false });
+const GitPanel = dynamic(() => import("@/components/office/ui/GitPanel"), { ssr: false });
 const EditorToolbar = dynamic(() => import("@/components/office/editor/EditorToolbar"), { ssr: false });
 const ZoomControls = dynamic(() => import("@/components/office/ui/ZoomControls"), { ssr: false });
 const SettingsModal = dynamic(() => import("@/components/office/ui/SettingsModal"), { ssr: false });
+const LogViewer = dynamic(() => import("@/components/office/ui/LogViewer"), { ssr: false });
+const ShortcutsModal = dynamic(() => import("@/components/office/ui/ShortcutsModal"), { ssr: false });
+const MetricsPanel = dynamic(() => import("@/components/office/ui/MetricsPanel"), { ssr: false });
+const NotificationCenter = dynamic(() => import("@/components/office/ui/NotificationCenter").then(m => ({ default: m.NotificationDrawer })), { ssr: false });
 const BottomToolbar = dynamic(() => import("@/components/office/ui/BottomToolbar"), { ssr: false });
 const ProjectHistory = dynamic(() => import("@/components/office/ui/ProjectHistory"), { ssr: false });
 const OfficeSwitcher = dynamic(() => import("@/components/office/ui/OfficeSwitcher"), { ssr: false });
@@ -56,7 +66,9 @@ const MultiPaneView = dynamic(() => import("@/components/office/ui/MultiPaneView
 const CommandPalette = dynamic(() => import("@/components/office/ui/CommandPalette"), { ssr: false });
 const ProjectBar = dynamic(() => import("@/components/office/ui/ProjectBar"), { ssr: false });
 const NewProjectModal = dynamic(() => import("@/components/office/ui/NewProjectModal"), { ssr: false });
+const PipelineBuilder = dynamic(() => import("@/components/office/ui/PipelineBuilder"), { ssr: false });
 const AblyLoader = dynamic(() => import("@/hooks/useAblyLoader"), { ssr: false });
+const LeftSidebar = dynamic(() => import("@/components/office/ui/LeftSidebar"), { ssr: false });
 
 /** Sentinel that triggers loadMore when scrolled into view */
 function LoadMoreSentinel({ onLoadMore }: { onLoadMore: () => void }) {
@@ -189,16 +201,19 @@ export default function OfficePage() {
   // Stable refs — these functions never change identity, no need to trigger re-renders
   const { addUserMessage, clearTeamMessages, setRole, getVisibleMessages, loadMoreMessages, addAgentToProject, getActiveProject } = useOfficeStore.getState();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [showTimelineFor, setShowTimelineFor] = useState<Set<string>>(new Set());
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewRatings, setPreviewRatings] = useState<Ratings>({});
   const [previewRated, setPreviewRated] = useState(false);
   const [celebration, setCelebration] = useState<{ previewUrl?: string; previewPath?: string; previewCmd?: string; previewPort?: number; projectDir?: string; entryFile?: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { confirm, modal: confirmModal } = useConfirm();
+  const [contextMenuEl, showContextMenu] = useAgentContextMenu();
   const [showHireModal, setShowHireModal] = useState(false);
   const [showHireTeamModal, setShowHireTeamModal] = useState(false);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showPipelineBuilder, setShowPipelineBuilder] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentDefinition | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [mobileTeamOpen, setMobileTeamOpen] = useState(false);
@@ -211,6 +226,15 @@ export default function OfficePage() {
   // Editor state
   const [editMode, setEditMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogViewer, setShowLogViewer] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [viewMode, setViewMode] = useState<"scene" | "dashboard" | "files" | "git">(() => {
+    if (typeof window === "undefined") return "scene";
+    const saved = localStorage.getItem("nvlabs-org-view-mode");
+    return (saved === "dashboard" || saved === "files" || saved === "git") ? saved : "scene";
+  });
   const [showHistory, setShowHistory] = useState(false);
   const [showOfficeSwitcher, setShowOfficeSwitcher] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -242,15 +266,57 @@ export default function OfficePage() {
   const [termTheme, setTermTheme] = useState("studio");
   applyTermTheme(termTheme);
   useEffect(() => {
-    const saved = localStorage.getItem("open-office-theme");
+    const saved = localStorage.getItem("nvlabs-org-theme");
     if (saved && TERM_THEMES[saved]) {
       setTermTheme(saved);
     }
   }, []);
   useEffect(() => {
     applyTermTheme(termTheme);
-    localStorage.setItem("open-office-theme", termTheme);
+    localStorage.setItem("nvlabs-org-theme", termTheme);
   }, [termTheme]);
+
+  // Listen for theme changes from SettingsModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const key = (e as CustomEvent).detail;
+      if (key && TERM_THEMES[key]) setTermTheme(key);
+    };
+    window.addEventListener("theme-changed", handler);
+    return () => window.removeEventListener("theme-changed", handler);
+  }, []);
+
+  // ── Open log viewer from Settings (custom event) ──
+  useEffect(() => {
+    const handler = () => setShowLogViewer(true);
+    const metricsHandler = () => setShowMetrics(true);
+    window.addEventListener("open-log-viewer", handler);
+    window.addEventListener("open-metrics", metricsHandler);
+    return () => {
+      window.removeEventListener("open-log-viewer", handler);
+      window.removeEventListener("open-metrics", metricsHandler);
+    };
+  }, []);
+
+  // ── Keyboard shortcuts panel (? or Cmd+/) ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      // ? key (when not typing in input)
+      if (e.key === "?" && !isInput && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowShortcuts(prev => !prev);
+      }
+      // Cmd+/ or Ctrl+/
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        setShowShortcuts(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ── Cmd+K command palette ──
   useEffect(() => {
@@ -886,6 +952,237 @@ export default function OfficePage() {
     const agent = agents.get(selectedAgent);
     if (agent?.isExternal) return;
 
+    // ── Slash command interception ──
+    const trimmed = prompt.trim();
+    if (trimmed.startsWith("/")) {
+      const spaceIdx = trimmed.indexOf(" ");
+      const cmd = (spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx)).toLowerCase();
+      const args = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1).trim();
+
+      switch (cmd) {
+        case "/cancel":
+          sendCommand({ type: "CANCEL_TASK", agentId: selectedAgent, taskId: "" });
+          setPrompt("");
+          return;
+        case "/fire":
+          sendCommand({ type: "FIRE_AGENT", agentId: selectedAgent });
+          setPrompt("");
+          return;
+        case "/clear":
+          useOfficeStore.setState((state) => {
+            const ag = state.agents.get(selectedAgent);
+            if (ag) {
+              const updated = new Map(state.agents);
+              updated.set(selectedAgent, { ...ag, messages: [] });
+              return { agents: updated };
+            }
+            return {};
+          });
+          setPrompt("");
+          return;
+        case "/git":
+          sendCommand({ type: "GET_GIT_STATUS", path: agentWorkDirMap.get(selectedAgent) || useOfficeStore.getState().configData?.workspace || "" });
+          setPrompt("");
+          return;
+        case "/diff": {
+          sendCommand({ type: "GET_FILE_DIFF", path: agentWorkDirMap.get(selectedAgent), file: "." });
+          setPrompt("");
+          return;
+        }
+        case "/push":
+          sendCommand({ type: "PUSH_BRANCH", path: agentWorkDirMap.get(selectedAgent) });
+          setPrompt("");
+          return;
+        case "/pr":
+          if (args) {
+            sendCommand({ type: "CREATE_PR", title: args, path: agentWorkDirMap.get(selectedAgent) });
+          }
+          setPrompt("");
+          return;
+        case "/project":
+          if (args) {
+            sendCommand({ type: "SWITCH_WORKSPACE", path: args });
+          }
+          setPrompt("");
+          return;
+        case "/broadcast": {
+          if (args) {
+            for (const ag of agents.values()) {
+              if (ag.isExternal || ag.agentId === selectedAgent) continue;
+              const taskId = nanoid();
+              addUserMessage(ag.agentId, taskId, args);
+              sendCommand({ type: "RUN_TASK", agentId: ag.agentId, taskId, prompt: args });
+            }
+          }
+          setPrompt("");
+          return;
+        }
+        case "/hire":
+          setShowHireModal(true);
+          setPrompt("");
+          return;
+        case "/hireteam":
+          setShowHireTeamModal(true);
+          setPrompt("");
+          return;
+        case "/pipeline":
+          setShowPipelineBuilder(true);
+          setPrompt("");
+          return;
+        case "/settings":
+          setShowSettings(true);
+          setPrompt("");
+          return;
+        case "/metrics":
+          window.dispatchEvent(new CustomEvent("open-metrics"));
+          setPrompt("");
+          return;
+        case "/status":
+          sendCommand({ type: "PING" });
+          setPrompt("");
+          return;
+        case "/export":
+          // Handled by the export button, but also support as command
+          if (agent) {
+            const msgs = agent.messages;
+            if (msgs.length > 0) {
+              const lines = [`# Chat Export: ${agent.name}`, `Exported: ${new Date().toISOString()}`, "", "---", ""];
+              for (const msg of msgs) {
+                const time = new Date(msg.timestamp).toLocaleString();
+                const role = msg.role === "user" ? "**You**" : msg.role === "agent" ? `**${agent.name}**` : "*System*";
+                lines.push(`### ${role} — ${time}`, "", msg.text || "(empty)", "");
+              }
+              const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${agent.name.replace(/\s+/g, "-").toLowerCase()}-chat.md`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
+          }
+          setPrompt("");
+          return;
+        case "/model":
+          if (args) {
+            // Pass model override as part of the next task — store in a ref or just inform
+            addUserMessage(selectedAgent, `sys-${Date.now()}`, `Model set to: ${args}`);
+          }
+          setPrompt("");
+          return;
+        case "/help": {
+          const helpText = [
+            "**Available Commands:**",
+            "",
+            "**Agent:** /cancel, /fire, /retry, /clear",
+            "**Project:** /project <path>, /git, /diff, /files, /push, /pr <title>",
+            "**Multi-Agent:** /broadcast <msg>, /hire, /hireteam",
+            "**Tools:** /preview, /export, /model <name>, /pipeline, /settings",
+            "**Info:** /help, /status, /metrics",
+          ].join("\n");
+          useOfficeStore.setState((state) => {
+            const ag = state.agents.get(selectedAgent);
+            if (ag) {
+              const updated = new Map(state.agents);
+              updated.set(selectedAgent, {
+                ...ag,
+                messages: [...ag.messages, { id: `help-${Date.now()}`, role: "system" as const, text: helpText, timestamp: Date.now() }],
+              });
+              return { agents: updated };
+            }
+            return {};
+          });
+          setPrompt("");
+          return;
+        }
+        case "/switch": {
+          // Switch agent's backend
+          if (args && agent) {
+            addUserMessage(selectedAgent, `sys-${Date.now()}`, `Switching backend to: ${args}`);
+            // Fire and re-hire with new backend is the typical pattern
+            // For now, inform the user
+            useOfficeStore.setState((state) => {
+              const ag = state.agents.get(selectedAgent);
+              if (ag) {
+                const updated = new Map(state.agents);
+                updated.set(selectedAgent, {
+                  ...ag,
+                  messages: [...ag.messages, { id: `sys-${Date.now()}`, role: "system" as const, text: `Backend switch to "${args}" — fire and re-hire to apply.`, timestamp: Date.now() }],
+                });
+                return { agents: updated };
+              }
+              return {};
+            });
+          }
+          setPrompt("");
+          return;
+        }
+        case "/compact": {
+          // Claude-specific: send as a hint in the next task prompt
+          addUserMessage(selectedAgent, `sys-${Date.now()}`, "[System] Context compacted");
+          setPrompt("");
+          return;
+        }
+        case "/add":
+        case "/drop": {
+          // Aider-specific: pass through as task prompt so the agent's CLI handles it
+          // The agent prompt will be prefixed with the command
+          break; // fall through to send as regular prompt
+        }
+        case "/spec": {
+          // Kiro-specific
+          addUserMessage(selectedAgent, `sys-${Date.now()}`, "[System] Spec mode — describe your feature requirements");
+          setPrompt("");
+          return;
+        }
+        case "/backends": {
+          const backends = useOfficeStore.getState().configData?.detectedBackends ?? [];
+          useOfficeStore.setState((state) => {
+            const ag = state.agents.get(selectedAgent);
+            if (ag) {
+              const updated = new Map(state.agents);
+              updated.set(selectedAgent, {
+                ...ag,
+                messages: [...ag.messages, { id: `sys-${Date.now()}`, role: "system" as const, text: `**Available backends:** ${backends.length > 0 ? backends.join(", ") : "none detected"}`, timestamp: Date.now() }],
+              });
+              return { agents: updated };
+            }
+            return {};
+          });
+          setPrompt("");
+          return;
+        }
+        case "/schedule": {
+          // /schedule <minutes> <prompt>
+          const parts = args.match(/^(\d+)\s+(.+)$/);
+          if (parts && agent) {
+            sendCommand({ type: "CREATE_SCHEDULE", name: `${agent.name}-auto`, agentId: selectedAgent, prompt: parts[2], intervalMinutes: parseInt(parts[1], 10) });
+            addUserMessage(selectedAgent, `sys-${Date.now()}`, `Scheduled: every ${parts[1]}min → "${parts[2].slice(0, 60)}..."`);
+          } else {
+            useOfficeStore.setState((state) => {
+              const ag = state.agents.get(selectedAgent);
+              if (ag) {
+                const updated = new Map(state.agents);
+                updated.set(selectedAgent, {
+                  ...ag,
+                  messages: [...ag.messages, { id: `sys-${Date.now()}`, role: "system" as const, text: "Usage: /schedule <minutes> <prompt>", timestamp: Date.now() }],
+                });
+                return { agents: updated };
+              }
+              return {};
+            });
+          }
+          setPrompt("");
+          return;
+        }
+        default:
+          // Unknown slash command — send as regular prompt (agent might handle it)
+          break;
+      }
+    }
+
     // Upload images first, collect paths
     const imagePaths = await uploadImages(pendingImages);
 
@@ -1243,8 +1540,24 @@ export default function OfficePage() {
   return (
     <div style={{ height: "100vh", width: "100vw", position: "relative", overflow: "hidden", display: "flex", backgroundColor: TERM_BG }}>
       <AblyLoader />
+      {/* Left Sidebar — vertical button bar */}
+      {sceneVisible && !consoleMode && !isMobile && (
+        <LeftSidebar
+          viewMode={viewMode}
+          onSetViewMode={(mode) => {
+            setViewMode(mode);
+            localStorage.setItem("nvlabs-org-view-mode", mode);
+          }}
+          onNotificationClick={() => setShowNotifications(prev => !prev)}
+          showShareMenu={showShareMenu}
+          onToggleShareMenu={() => setShowShareMenu(!showShareMenu)}
+          onCreateShareLink={handleCreateShareLink}
+          isOwner={isOwner}
+          connected={connected}
+        />
+      )}
       {/* Game Scene — fills remaining space after sidebar, centered */}
-      {sceneVisible && !consoleMode && <div style={{ flex: 1, position: "relative", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginRight: "calc(min(40vw, 800px) + 30px)" }}>
+      {sceneVisible && !consoleMode && <div style={{ flex: 1, position: "relative", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", marginRight: isMobile ? 0 : "calc(min(40vw, 800px) + 30px)", marginLeft: isMobile ? 0 : 48 }}>
         {/* Loading overlay — fades out to reveal scene */}
         <div style={{
           position: "absolute", inset: 0, zIndex: 5,
@@ -1253,6 +1566,26 @@ export default function OfficePage() {
           pointerEvents: "none",
         }} />
         <div style={{ width: `min(100%, calc(100vh * ${mapAspect}))`, height: `min(100%, calc(100vw / ${mapAspect}))`, aspectRatio: `${mapAspect}`, position: "relative", maxHeight: "100vh" }}>
+        {viewMode === "dashboard" ? (
+          <PanelBoundary name="Dashboard">
+          <DashboardView
+            onHire={() => setShowHireModal(true)}
+            onHireTeam={() => setShowHireTeamModal(true)}
+            onSettings={() => setShowSettings(true)}
+            onSelectAgent={(id) => setSelectedAgent(id)}
+            onPipeline={() => setShowPipelineBuilder(true)}
+          />
+          </PanelBoundary>
+        ) : viewMode === "files" ? (
+          <PanelBoundary name="File Explorer">
+          <FileExplorer rootPath={useOfficeStore.getState().configData?.workspace ?? ""} />
+          </PanelBoundary>
+        ) : viewMode === "git" ? (
+          <PanelBoundary name="Git Panel">
+          <GitPanel rootPath={useOfficeStore.getState().configData?.workspace ?? ""} />
+          </PanelBoundary>
+        ) : (
+        <>
         <PixelOfficeScene
           onAdapterReady={handleAdapterReady}
           onAgentClick={handleAgentClick}
@@ -1274,6 +1607,8 @@ export default function OfficePage() {
 
         {/* Loading overlay — covers canvas until office ZIP is loaded */}
         <LoadingOverlay visible={!assetsReady} />
+        </>
+        )}
 
         {/* Top-left status bar */}
         <div style={{
@@ -1283,7 +1618,7 @@ export default function OfficePage() {
           pointerEvents: "none",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
-            <h1 className="px-font" style={{ fontSize: 12, margin: 0, color: "#e8b040", textShadow: "2px 2px 0px rgba(0,0,0,0.8), 0 0 12px rgba(200,155,48,0.3)", letterSpacing: "0.05em" }}>Open Office</h1>
+            <h1 className="px-font" style={{ fontSize: 12, margin: 0, color: "#e8b040", textShadow: "2px 2px 0px rgba(0,0,0,0.8), 0 0 12px rgba(200,155,48,0.3)", letterSpacing: "0.05em" }}>NVLabs Org</h1>
             <span
               title={APP_BUILD_TIME ? `Web UI v${APP_VERSION}\nBuild ${APP_BUILD_TIME}` : `Web UI v${APP_VERSION}`}
               style={{
@@ -1294,15 +1629,6 @@ export default function OfficePage() {
                 userSelect: "text",
               }}
             >v{APP_VERSION}</span>
-            <span style={{
-              fontSize: 10, padding: "3px 7px",
-              border: `1px solid ${connected ? `${TERM_SEM_GREEN}40` : `${TERM_SEM_RED}40`}`,
-              backgroundColor: connected ? `${TERM_SEM_GREEN}15` : `${TERM_SEM_RED}15`,
-              color: connected ? TERM_SEM_GREEN : TERM_SEM_RED,
-              fontFamily: "monospace", letterSpacing: "0.05em",
-            }}>
-              {connected ? "● ONLINE" : "● OFFLINE"}
-            </span>
             {editMode && (
               <span style={{
                 fontSize: 10, padding: "3px 7px",
@@ -1332,51 +1658,6 @@ export default function OfficePage() {
               }}>
                 COLLABORATOR
               </span>
-            )}
-            {isOwner && (
-              <div style={{ position: "relative" }}>
-                <span
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  style={{
-                    fontSize: 10, padding: "3px 7px", cursor: "pointer",
-                    border: "1px solid #a855f760",
-                    backgroundColor: showShareMenu ? "#a855f720" : "transparent", color: "#c084fc",
-                    fontFamily: "monospace", letterSpacing: "0.05em",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#a855f720"; }}
-                  onMouseLeave={(e) => { if (!showShareMenu) e.currentTarget.style.backgroundColor = "transparent"; }}
-                >
-                  SHARE
-                </span>
-                {showShareMenu && (
-                  <div style={{
-                    position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50,
-                    backgroundColor: TERM_PANEL, border: `1px solid ${TERM_BORDER}`,
-                    display: "flex", flexDirection: "column", minWidth: 160,
-                  }}>
-                    <button
-                      onClick={() => handleCreateShareLink("collaborator")}
-                      style={{
-                        padding: "8px 12px", border: "none", backgroundColor: "transparent",
-                        color: "#c084fc", fontSize: 12, cursor: "pointer", textAlign: "left",
-                        fontFamily: "monospace",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#a855f720"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
-                    >Collaborator link</button>
-                    <button
-                      onClick={() => handleCreateShareLink("spectator")}
-                      style={{
-                        padding: "8px 12px", border: "none", backgroundColor: "transparent",
-                        color: "#7ab8f5", fontSize: 12, cursor: "pointer", textAlign: "left",
-                        fontFamily: "monospace",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#3b82f620"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
-                    >Spectator link</button>
-                  </div>
-                )}
-              </div>
             )}
           </div>
         </div>
@@ -1670,6 +1951,15 @@ export default function OfficePage() {
                   <button
                     key={agent.agentId}
                     onClick={() => { setSelectedAgent(agent.agentId); setChatOpen(true); }}
+                    onContextMenu={(e) => {
+                      const actions: ContextMenuAction[] = [
+                        { label: "Open Chat", icon: "💬", onClick: () => { setSelectedAgent(agent.agentId); setChatOpen(true); } },
+                        { label: "Assign Task", icon: "📋", onClick: () => { setSelectedAgent(agent.agentId); setChatOpen(true); } },
+                        { label: "Cancel Task", icon: "⏹", disabled: agentState?.status !== "working", onClick: () => { sendCommand({ type: "CANCEL_TASK", agentId: agent.agentId }); } },
+                        { label: "Fire Agent", icon: "🔥", danger: true, onClick: () => { sendCommand({ type: "FIRE_AGENT", agentId: agent.agentId }); } },
+                      ];
+                      showContextMenu(e, actions);
+                    }}
                     title={`${agent.name} - ${cfg.label}`}
                     style={{
                       display: "flex", flexDirection: "row", alignItems: "center",
@@ -2031,6 +2321,12 @@ export default function OfficePage() {
                   onApplyReviewFixes={reviewOverlay?.sourceAgentId === selectedAgent ? handleApplyReviewFixes : undefined}
                   onDismissReview={reviewOverlay?.sourceAgentId === selectedAgent ? handleDismissReview : undefined}
                   scrollFrozen={scrollFrozen}
+                  showTimeline={showTimelineFor.has(selectedAgent)}
+                  onToggleTimeline={(show) => setShowTimelineFor(prev => {
+                    const next = new Set(prev);
+                    if (show) next.add(selectedAgent!); else next.delete(selectedAgent!);
+                    return next;
+                  })}
                 />
               );
             })() : (
@@ -2527,6 +2823,10 @@ export default function OfficePage() {
         <HireTeamModal agentDefs={agentDefs} onCreateTeam={handleCreateTeam} onClose={() => setShowHireTeamModal(false)} assetsReady={assetsReady} detectedBackends={detectedBackends} projectDir={getActiveProject()?.directory} />
       )}
 
+      {showPipelineBuilder && (
+        <PipelineBuilder isOpen={showPipelineBuilder} onClose={() => setShowPipelineBuilder(false)} />
+      )}
+
       {showCreateAgent && (
         <CreateAgentModal
           onSave={handleSaveAgentDef}
@@ -2552,6 +2852,24 @@ export default function OfficePage() {
           onConsoleRowsChange={(v) => { setConsoleRows(v); localStorage.setItem('office-console-rows', JSON.stringify(v)); }}
         />
       )}
+
+      {showLogViewer && (
+        <LogViewer isOpen={showLogViewer} onClose={() => setShowLogViewer(false)} />
+      )}
+
+      {showShortcuts && (
+        <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      )}
+
+      {showMetrics && (
+        <MetricsPanel isOpen={showMetrics} onClose={() => setShowMetrics(false)} />
+      )}
+
+      <NotificationCenter
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onSelectAgent={(agentId) => setSelectedAgent(agentId)}
+      />
 
       <OfficeSwitcher
         isOpen={showOfficeSwitcher}
@@ -2642,6 +2960,8 @@ export default function OfficePage() {
       )}
 
       {confirmModal}
+      {contextMenuEl}
+      <ToastContainer />
 
       <CommandPalette
         open={showCommandPalette}

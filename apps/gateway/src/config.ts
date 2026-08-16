@@ -9,7 +9,7 @@ import { randomBytes } from "crypto";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const isDev = process.env.NODE_ENV === "development";
-export const CONFIG_DIR = resolve(homedir(), isDev ? ".open-office-dev" : ".open-office");
+export const CONFIG_DIR = resolve(homedir(), isDev ? ".nvlabs-org-dev" : ".nvlabs-org");
 const CONFIG_FILE = resolve(CONFIG_DIR, "config.json");
 
 
@@ -28,6 +28,47 @@ interface SavedConfig {
   autoMergeEnabled?: boolean;
   tunnelBaseUrl?: string;
   tunnelToken?: string;
+  /** Webhook URLs for external notifications */
+  webhooks?: WebhookConfig[];
+  /** Saved team templates */
+  teamTemplates?: TeamTemplate[];
+  /** GitHub personal access token for push/PR */
+  githubToken?: string;
+  /** Default GitHub remote name (defaults to "origin") */
+  githubRemote?: string;
+  /** API key for REST API access */
+  apiKey?: string;
+  /** Saved pipelines */
+  pipelines?: PipelineDefinition[];
+  /** Saved workspace path (overrides default) */
+  workspace?: string;
+  /** Recently used workspaces */
+  recentWorkspaces?: string[];
+}
+
+export interface WebhookConfig {
+  url: string;
+  secret?: string;
+  events: string[]; // e.g. ["TASK_DONE", "TASK_FAILED"]
+  enabled: boolean;
+}
+
+export interface TeamTemplate {
+  name: string;
+  members: { defId: string; backend?: string }[];
+  workDir?: string;
+}
+
+export interface PipelineDefinition {
+  name: string;
+  steps: PipelineStep[];
+}
+
+export interface PipelineStep {
+  id: string;
+  agentRole: string;
+  prompt: string;
+  dependsOn?: string[];
 }
 
 function ensureConfigDir() {
@@ -90,7 +131,7 @@ function ensureGitRepo(dir: string) {
   } catch {
     try {
       execSync("git init", { cwd: dir, stdio: "pipe", timeout: 3000 });
-      execSync('git -c user.name=OpenOffice -c user.email=bot@open-office.local commit --allow-empty -m init', { cwd: dir, stdio: "pipe", timeout: 3000 });
+      execSync('git -c user.name=NVLabsOrg -c user.email=bot@nvlabs-org.local commit --allow-empty -m init', { cwd: dir, stdio: "pipe", timeout: 3000 });
       console.log(`[Config] Initialized git repo in ${dir}`);
     } catch { /* ignore */ }
   }
@@ -98,7 +139,7 @@ function ensureGitRepo(dir: string) {
 
 function resolveDefaultWorkspace(): string {
   if (isDev) {
-    // Dev mode: use ~/.open-office-dev/projects/ (outside git repo so Claude Code
+    // Dev mode: use ~/.nvlabs-org-dev/projects/ (outside git repo so Claude Code
     // doesn't resolve to the source tree as its working directory)
     const ws = resolve(CONFIG_DIR, "projects");
     if (!existsSync(ws)) {
@@ -109,7 +150,7 @@ function resolveDefaultWorkspace(): string {
     return ws;
   }
   // Published mode: use the directory where the user ran the command
-  // Tauri sidecar runs with cwd="/", fall back to ~/.open-office/projects/
+  // Tauri sidecar runs with cwd="/", fall back to ~/.nvlabs-org/projects/
   const cwd = process.cwd();
   if (cwd === "/" || cwd === "C:\\") {
     const ws = resolve(CONFIG_DIR, "projects");
@@ -129,7 +170,7 @@ function resolveDefaultWorkspace(): string {
  * - Falls back to "port-{wsPort}" so different ports auto-isolate
  *
  * Each gateway instance gets its own state directory under
- * ~/.open-office[-dev]/data/instances/{gatewayId}/ to prevent cross-instance
+ * ~/.nvlabs-org[-dev]/data/instances/{gatewayId}/ to prevent cross-instance
  * context contamination (e.g. Tauri vs Web vs CLI all running separately).
  */
 function resolveGatewayId(): string {
@@ -153,12 +194,14 @@ function buildConfig() {
     machineId: getOrCreateMachineId(),
     /** Unique identifier for this gateway instance (isolates state from other instances) */
     gatewayId,
-    /** Per-instance state directory: ~/.open-office[-dev]/data/instances/{gatewayId}/ */
+    /** Per-instance state directory: ~/.nvlabs-org[-dev]/data/instances/{gatewayId}/ */
     instanceDir,
     defaultWorkspace: (() => {
       const envWs = process.env.WORKSPACE;
       if (envWs && existsSync(envWs)) return envWs;
       if (envWs) console.log(`[Config] WORKSPACE="${envWs}" does not exist, using default`);
+      const saved2 = loadSavedConfig();
+      if (saved2.workspace && existsSync(saved2.workspace)) return saved2.workspace;
       return resolveDefaultWorkspace();
     })(),
     wsPort: Number(process.env.WS_PORT) || (isDev ? 9099 : 9090),
@@ -183,6 +226,13 @@ function buildConfig() {
     autoMergeEnabled: saved.autoMergeEnabled ?? true,
     tunnelBaseUrl: (process.env.TUNNEL_BASE_URL || saved.tunnelBaseUrl || "").replace(/\/+$/, "") || undefined,
     tunnelToken: process.env.TUNNEL_TOKEN || saved.tunnelToken || undefined,
+    webhooks: saved.webhooks ?? [],
+    teamTemplates: saved.teamTemplates ?? [],
+    githubToken: process.env.GITHUB_TOKEN || saved.githubToken || undefined,
+    githubRemote: saved.githubRemote ?? "origin",
+    apiKey: saved.apiKey ?? undefined,
+    pipelines: saved.pipelines ?? [],
+    _recentWorkspaces: saved.recentWorkspaces ?? [],
   };
 }
 

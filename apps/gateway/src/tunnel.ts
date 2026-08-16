@@ -2,8 +2,8 @@
 // Cloudflare Tunnel manager — auto-starts `cloudflared` when token is configured.
 //
 // Usage:
-//   config.json: { "tunnelToken": "eyJ...", "tunnelBaseUrl": "https://openoffice.longames.com" }
-//   env:         TUNNEL_TOKEN=eyJ...  TUNNEL_BASE_URL=https://openoffice.longames.com
+//   config.json: { "tunnelToken": "eyJ...", "tunnelBaseUrl": "https://nvlabs-org.longames.com" }
+//   env:         TUNNEL_TOKEN=eyJ...  TUNNEL_BASE_URL=https://nvlabs-org.longames.com
 // ---------------------------------------------------------------------------
 
 import { spawn, execFileSync } from "child_process";

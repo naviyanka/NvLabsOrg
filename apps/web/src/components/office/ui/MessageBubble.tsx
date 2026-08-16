@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { sendCommand } from "@/lib/connection";
 import type { ChatMessage } from "@/store/office-store";
 import { TERM_FONT, TERM_SIZE, TERM_GREEN, TERM_DIM, TERM_TEXT, TERM_TEXT_BRIGHT, TERM_ERROR, TERM_PANEL, TERM_SURFACE, TERM_BORDER, TERM_BORDER_DIM, TERM_SEM_GREEN, TERM_SEM_YELLOW, TERM_SEM_RED, TERM_SEM_BLUE, TERM_SEM_PURPLE } from "./termTheme";
@@ -78,26 +80,6 @@ function TokenBadge({ inputTokens, outputTokens }: { inputTokens: number; output
   );
 }
 
-/** Render diff-highlighted lines for code blocks with language "diff" */
-function DiffHighlightedCode({ text }: { text: string }) {
-  return (
-    <>
-      {text.split("\n").map((line, i) => {
-        let color = "inherit";
-        let bg = "transparent";
-        if (line.startsWith("+")) { color = TERM_SEM_GREEN; bg = `${TERM_SEM_GREEN}08`; }
-        else if (line.startsWith("-")) { color = TERM_SEM_RED; bg = `${TERM_SEM_RED}08`; }
-        else if (line.startsWith("@@")) { color = TERM_DIM; }
-        return (
-          <span key={i} style={{ display: "block", color, backgroundColor: bg, padding: "0 6px", margin: "0 -6px", borderRadius: 1 }}>
-            {line}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
 const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   p({ children }) {
     return <div style={{ marginBottom: 8 }}>{children}</div>;
@@ -113,7 +95,6 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
     const text = String(children).replace(/\n$/, "");
     const lang = className?.replace("language-", "") ?? "";
     const isBlock = className?.includes("language-") || text.includes("\n");
-    const isDiff = lang === "diff";
     const openMatch = text.match(/^open\s+(\/\S+)/);
     const fileMatch = !openMatch ? text.match(/^(\/[\w./-]+\.\w+)$/) : null;
     const filePath = openMatch?.[1] ?? fileMatch?.[1];
@@ -135,19 +116,24 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
     }
     if (isBlock) {
       return (
-        <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", position: "relative" }}>
-          {lang && (
-            <span style={{
-              position: "absolute", top: -1, right: 6,
-              fontSize: TERM_SIZE, color: TERM_DIM,
-              fontFamily: "inherit", letterSpacing: "0.04em",
-              userSelect: "none", pointerEvents: "none",
-            }}>{lang}</span>
-          )}
-          <code {...props}>
-            {isDiff ? <DiffHighlightedCode text={text} /> : children}
-          </code>
-        </pre>
+        <SyntaxHighlighter
+          style={oneDark}
+          language={lang || "text"}
+          PreTag="div"
+          customStyle={{
+            margin: "8px 0",
+            padding: "10px 12px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            lineHeight: "1.5",
+            background: "rgba(0,0,0,0.35)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            overflowX: "auto",
+          }}
+          codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
+        >
+          {text}
+        </SyntaxHighlighter>
       );
     }
     return <code {...props}>{children}</code>;
