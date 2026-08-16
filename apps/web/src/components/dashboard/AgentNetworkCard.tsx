@@ -3,45 +3,42 @@
 import { useMemo } from "react";
 import { useOfficeStore } from "@/store/office-store";
 
-const ZONES = [
-  { id: "planning", name: "Planning Zone", x: 5, y: 5, w: 40, h: 35, color: "#a855f7" },
-  { id: "development", name: "Development Zone", x: 50, y: 5, w: 45, h: 45, color: "#22c55e" },
-  { id: "meeting", name: "Meeting Area", x: 50, y: 55, w: 30, h: 25, color: "#eab308" },
-  { id: "analysis", name: "Analysis Zone", x: 5, y: 45, w: 35, h: 28, color: "#06b6d4" },
-  { id: "support", name: "Support Zone", x: 5, y: 76, w: 40, h: 20, color: "#f97316" },
-  { id: "hq", name: "HQ Terminal", x: 60, y: 78, w: 35, h: 18, color: "#3b82f6" },
-];
+/**
+ * Agent Network — constellation view
+ * 
+ * Each agent is a node in a living network. Working agents pulse,
+ * idle agents glow dimly, connections show team bonds.
+ * The team lead sits at center; others orbit around it.
+ */
 
 export default function AgentNetworkCard() {
   const agents = useOfficeStore((s) => s.agents);
 
   const agentList = useMemo(() => {
     return Array.from(agents.values())
-      .filter(a => !a.isExternal && !a.agentId.startsWith("reviewer-"))
-      .slice(0, 20);
+      .filter(a => !a.isExternal && !a.agentId.startsWith("reviewer-"));
   }, [agents]);
 
   const activeCount = agentList.length;
+  const workingCount = agentList.filter(a => a.status === "working").length;
 
-  // Distribute agents into zones
-  const agentPositions = useMemo(() => {
+  // Position agents in a circular constellation
+  const nodes = useMemo(() => {
+    if (agentList.length === 0) return [];
+    const cx = 50, cy = 50;
+    const radius = agentList.length === 1 ? 0 : Math.min(32, 18 + agentList.length * 2);
+
     return agentList.map((agent, i) => {
-      const zone = ZONES[i % ZONES.length];
-      // Scatter within zone bounds
-      const offsetX = 8 + (i * 7) % (zone.w - 16);
-      const offsetY = 12 + (i * 11) % (zone.h - 16);
-      const statusColor = agent.status === "working" ? "#22c55e"
-        : agent.status === "waiting_approval" ? "#eab308"
-        : agent.status === "error" ? "#ef4444"
-        : "#4b5563";
-      return {
-        x: zone.x + offsetX,
-        y: zone.y + offsetY,
-        name: agent.name,
-        status: agent.status,
-        statusColor,
-        zoneColor: zone.color,
-      };
+      const angle = (i / agentList.length) * Math.PI * 2 - Math.PI / 2;
+      const x = agentList.length === 1 ? cx : cx + Math.cos(angle) * radius;
+      const y = agentList.length === 1 ? cy : cy + Math.sin(angle) * radius;
+      const isWorking = agent.status === "working";
+      const isError = agent.status === "error";
+      const isWaiting = agent.status === "waiting_approval";
+      const color = isWorking ? "#22c55e" : isError ? "#ef4444" : isWaiting ? "#eab308" : "#6366f1";
+      const size = isWorking ? 7 : 5;
+
+      return { x, y, color, size, name: agent.name, status: agent.status, isWorking, isTeamLead: agent.isTeamLead, backend: agent.backend };
     });
   }, [agentList]);
 
@@ -55,115 +52,140 @@ export default function AgentNetworkCard() {
         <span className="v2-section-link">View Office →</span>
       </div>
 
-      {/* Office Map */}
+      {/* Constellation view */}
       <div style={{
         height: 200, borderRadius: 8, overflow: "hidden",
-        background: "#080a10",
+        background: "radial-gradient(ellipse at center, #0f1320 0%, #080a10 100%)",
         border: "1px solid var(--v2-card-border)",
         position: "relative",
       }}>
-        {/* Grid floor pattern */}
-        <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, opacity: 0.05 }}>
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
+          {/* Background particles */}
+          {Array.from({ length: 30 }, (_, i) => (
+            <circle
+              key={`star-${i}`}
+              cx={10 + (i * 37) % 80}
+              cy={5 + (i * 53) % 90}
+              r={0.3 + (i % 3) * 0.2}
+              fill="rgba(255,255,255,0.15)"
+            />
+          ))}
+
+          {/* Connection lines between agents */}
+          {nodes.length > 1 && nodes.map((node, i) => {
+            // Connect to next node and to center if team lead exists
+            const next = nodes[(i + 1) % nodes.length];
+            return (
+              <line
+                key={`conn-${i}`}
+                x1={node.x} y1={node.y}
+                x2={next.x} y2={next.y}
+                stroke={node.isWorking ? "rgba(34,197,94,0.15)" : "rgba(99,102,241,0.08)"}
+                strokeWidth={0.3}
+                strokeDasharray={node.isWorking ? "none" : "1 1"}
+              />
+            );
+          })}
+
+          {/* Team lead center hub (if any) */}
+          {nodes.some(n => n.isTeamLead) && (
+            <>
+              <circle cx={50} cy={50} r={12} fill="none" stroke="rgba(99,102,241,0.1)" strokeWidth={0.3} strokeDasharray="2 2" />
+              <circle cx={50} cy={50} r={20} fill="none" stroke="rgba(99,102,241,0.05)" strokeWidth={0.2} />
+            </>
+          )}
+
+          {/* Agent nodes */}
+          {nodes.map((node, i) => (
+            <g key={i}>
+              {/* Outer glow ring */}
+              <circle
+                cx={node.x} cy={node.y} r={node.size + 2}
+                fill="none"
+                stroke={node.color}
+                strokeWidth={0.4}
+                opacity={node.isWorking ? 0.6 : 0.2}
+              >
+                {node.isWorking && (
+                  <animate attributeName="r" values={`${node.size + 1};${node.size + 3};${node.size + 1}`} dur="2s" repeatCount="indefinite" />
+                )}
+                {node.isWorking && (
+                  <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
+                )}
+              </circle>
+
+              {/* Core dot */}
+              <circle
+                cx={node.x} cy={node.y} r={node.size}
+                fill={node.color}
+                opacity={node.isWorking ? 0.9 : 0.5}
+                filter={node.isWorking ? "url(#glow)" : "none"}
+              />
+
+              {/* Team lead crown indicator */}
+              {node.isTeamLead && (
+                <text x={node.x} y={node.y - node.size - 3} textAnchor="middle" fontSize="4" fill="#eab308">★</text>
+              )}
+
+              {/* Name label */}
+              <text
+                x={node.x}
+                y={node.y + node.size + 5}
+                textAnchor="middle"
+                fontSize="3"
+                fill="rgba(255,255,255,0.6)"
+                fontFamily="Inter, sans-serif"
+              >
+                {node.name}
+              </text>
+            </g>
+          ))}
+
+          {/* Glow filter */}
           <defs>
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="white" strokeWidth="0.5"/>
-            </pattern>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
           </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
         </svg>
 
-        {/* Zones */}
-        {ZONES.map(zone => (
-          <div
-            key={zone.id}
-            style={{
-              position: "absolute",
-              left: `${zone.x}%`,
-              top: `${zone.y}%`,
-              width: `${zone.w}%`,
-              height: `${zone.h}%`,
-              border: `1px solid ${zone.color}40`,
-              borderRadius: 6,
-              background: `${zone.color}08`,
-            }}
-          >
-            <span style={{
-              position: "absolute", bottom: 3, left: 5,
-              fontSize: 7, color: `${zone.color}99`,
-              fontWeight: 500, letterSpacing: "0.02em",
-              whiteSpace: "nowrap",
-            }}>
-              {zone.name}
-            </span>
-          </div>
-        ))}
-
-        {/* Agent sprites */}
-        {agentPositions.map((agent, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: `${agent.x}%`,
-              top: `${agent.y}%`,
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            {/* Agent body (pixel-art style) */}
-            <div style={{
-              width: 14, height: 16, borderRadius: 2,
-              background: `${agent.zoneColor}60`,
-              border: `1px solid ${agent.zoneColor}`,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              position: "relative",
-            }}>
-              {/* Head */}
-              <div style={{
-                width: 8, height: 6, borderRadius: "2px 2px 0 0",
-                background: agent.zoneColor,
-                marginBottom: 1,
-              }} />
-              {/* Eyes */}
-              <div style={{ display: "flex", gap: 2 }}>
-                <div style={{ width: 2, height: 2, background: "#0f0", borderRadius: 1 }} />
-                <div style={{ width: 2, height: 2, background: "#0f0", borderRadius: 1 }} />
-              </div>
-              {/* Status indicator */}
-              <div style={{
-                position: "absolute", top: -3, right: -3,
-                width: 5, height: 5, borderRadius: "50%",
-                background: agent.statusColor,
-                border: "1px solid #080a10",
-                boxShadow: `0 0 4px ${agent.statusColor}`,
-              }} />
+        {/* Empty state */}
+        {nodes.length === 0 && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", border: "1px dashed rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 16, opacity: 0.4 }}>+</span>
             </div>
+            <span style={{ fontSize: 10, color: "var(--v2-text-dim)" }}>Hire agents to see the network</span>
           </div>
-        ))}
+        )}
 
-        {/* Fallback when no agents */}
-        {agentPositions.length === 0 && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--v2-text-dim)" }}>No agents deployed</span>
+        {/* Pulse indicator overlay */}
+        {workingCount > 0 && (
+          <div style={{ position: "absolute", top: 8, right: 8, display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "var(--v2-green)" }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--v2-green)", animation: "pulse 1.5s infinite" }} />
+            {workingCount} active
           </div>
         )}
       </div>
 
-      {/* Legend */}
-      <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 10, color: "var(--v2-text-muted)" }}>
-        <LegendDot color="#22c55e" label="Working" />
-        <LegendDot color="#3b82f6" label="Idle" />
-        <LegendDot color="#eab308" label="Review" />
-        <LegendDot color="#4b5563" label="Offline" />
+      {/* Bottom stats bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, padding: "0 4px" }}>
+        <StatPill color="#22c55e" count={workingCount} label="Working" />
+        <StatPill color="#6366f1" count={agentList.filter(a => a.status === "idle" || a.status === "done").length} label="Idle" />
+        <StatPill color="#eab308" count={agentList.filter(a => a.status === "waiting_approval").length} label="Review" />
+        <StatPill color="#4b5563" count={0} label="Offline" />
       </div>
     </div>
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
+function StatPill({ color, count, label }: { color: string; count: number; label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 4px ${color}60` }} />
-      <span>{label}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10 }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: count > 0 ? `0 0 6px ${color}60` : "none" }} />
+      <span style={{ color: count > 0 ? "var(--v2-text)" : "var(--v2-text-dim)" }}>{label}</span>
+      {count > 0 && <span style={{ color, fontWeight: 600 }}>{count}</span>}
     </div>
   );
 }
