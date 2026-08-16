@@ -1,5 +1,4 @@
 import { useRef, useEffect, memo, useCallback, useState, useMemo } from "react";
-import { flushSync } from "react-dom";
 import { useScrollAnchor } from "./useScrollAnchor";
 import { getStatusConfig, BACKEND_OPTIONS } from "./office-constants";
 import { TERM_FONT, TERM_SIZE, TERM_GREEN, TERM_DIM, TERM_TEXT, TERM_TEXT_BRIGHT, TERM_BG, TERM_PANEL, TERM_SURFACE, TERM_BORDER, TERM_BORDER_DIM, TERM_SEM_GREEN, TERM_SEM_YELLOW, TERM_SEM_RED, TERM_SEM_BLUE, TERM_SEM_CYAN } from "./termTheme";
@@ -559,14 +558,11 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
       // Command needs arguments — fill the prompt so user can type the arg
       onPromptChange(cmd.command + " ");
     } else {
-      // No-arg command — use flushSync to ensure prompt is updated synchronously,
-      // then call onSubmit which reads from promptRef (always fresh)
-      flushSync(() => {
-        onPromptChange(cmd.command);
-      });
-      onSubmit();
+      // No-arg command — dispatch directly via custom event to bypass memo/closure issues
+      onPromptChange("");
+      window.dispatchEvent(new CustomEvent("slash-command-execute", { detail: { command: cmd.command, agentId } }));
     }
-  }, [onPromptChange, onSubmit]);
+  }, [onPromptChange, agentId]);
 
   // ── Scroll-away detection for "new messages" pill ──
   const [scrolledAway, setScrolledAway] = useState(false);

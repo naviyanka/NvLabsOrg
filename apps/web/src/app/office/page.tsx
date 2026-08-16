@@ -1217,6 +1217,21 @@ export default function OfficePage() {
     pasteMapRef.current.clear();
   }, [selectedAgent, pendingImages, addUserMessage, agents, uploadImages]);
 
+  // ── Slash command execution from AgentPane (bypasses memo/closure issues) ──
+  const handleRunTaskRef = useRef(handleRunTask);
+  handleRunTaskRef.current = handleRunTask;
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { command } = (e as CustomEvent).detail;
+      if (!command) return;
+      promptRef.current = command;
+      setPrompt(command);
+      handleRunTaskRef.current();
+    };
+    window.addEventListener("slash-command-execute", handler);
+    return () => window.removeEventListener("slash-command-execute", handler);
+  }, []);
+
   const handleCancel = useCallback(() => {
     if (!selectedAgent) return;
     sendCommand({ type: "CANCEL_TASK", agentId: selectedAgent, taskId: "" });
