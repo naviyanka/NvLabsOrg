@@ -26,36 +26,36 @@ const p = (x: number, iy: number) => ({ x, y: IMG_TOP + iy * IMG_SCALE });
 // Desk positions in container coordinates
 const DESK_POSITIONS = [
   // Top-left room (Planning)
-  p(12, 18), p(19, 18), p(12, 28), p(19, 28),
+  p(16.5, 19), p(19, 19), p(16, 28.5), p(19, 28.5),
   // Top-center room (Development)
-  p(40, 18), p(47, 18), p(40, 28), p(47, 28),
+  p(44, 19), p(47, 19), p(44, 28), p(47, 28),
   // Top-right room (QA & Security)
-  p(68, 18), p(78, 18), p(68, 28), p(78, 28),
+  p(72, 19), p(75, 19), p(73, 28), p(75, 28),
   // Mid-left room (Data)
-  p(12, 50), p(19, 50), p(12, 60), p(19, 60),
+  p(15.5, 44), p(19.5, 44), p(15.5, 50), p(18.5, 50),
   // Center (Meeting room)
-  p(43, 48), p(50, 45), p(55, 52), p(48, 55),
+  p(46.5, 49.5), p(51.5, 41), p(56, 45), p(51.5, 54.5),
   // Mid-right room (Automation)
-  p(68, 50), p(78, 50), p(68, 60), p(78, 60),
+  p(73, 44), p(76, 44), p(74.5, 50), p(77.5, 50),
   // Bottom-left room (Research)
-  p(12, 78), p(19, 78), p(12, 88), p(19, 88),
+  p(16.5, 69), p(24.5, 69), p(12.5, 86), p(26, 86),
   // Bottom-center room (Operations)
-  p(40, 78), p(47, 78), p(40, 88), p(47, 88),
+  p(46.8, 69), p(57.2, 69), p(45.5, 86), p(48.2, 86),
   // Bottom-right room (Support)
-  p(68, 78), p(78, 78), p(68, 88), p(78, 88),
+  p(76, 69), p(87, 69), p(86.2, 86.5), p(88.6, 86.5),
 ];
 
 // Zone labels in container coordinates
 const ZONE_LABELS = [
-  { name: "Planning Zone", x: 15, y: IMG_TOP + 5 * IMG_SCALE, color: "#a855f7" },
-  { name: "Development Zone", x: 44, y: IMG_TOP + 5 * IMG_SCALE, color: "#22c55e" },
-  { name: "QA & Security Zone", x: 75, y: IMG_TOP + 5 * IMG_SCALE, color: "#f97316" },
-  { name: "Data Zone", x: 15, y: IMG_TOP + 42 * IMG_SCALE, color: "#06b6d4" },
-  { name: "Meeting Area", x: 49, y: IMG_TOP + 42 * IMG_SCALE, color: "#eab308" },
-  { name: "Automation Zone", x: 75, y: IMG_TOP + 42 * IMG_SCALE, color: "#3b82f6" },
-  { name: "Research Zone", x: 15, y: IMG_TOP + 78 * IMG_SCALE, color: "#ec4899" },
-  { name: "Operations Zone", x: 44, y: IMG_TOP + 78 * IMG_SCALE, color: "#84cc16" },
-  { name: "Support Zone", x: 75, y: IMG_TOP + 78 * IMG_SCALE, color: "#14b8a6" },
+  { name: "Planning Zone", x: 23, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#a855f7" },
+  { name: "Development Zone", x: 52, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#22c55e" },
+  { name: "QA & Security Zone", x: 80, y: IMG_TOP + 7.5 * IMG_SCALE, color: "#f97316" },
+  { name: "Data Zone", x: 22.5, y: IMG_TOP + 34 * IMG_SCALE, color: "#06b6d4" },
+  { name: "Meeting Area", x: 52, y: IMG_TOP + 34 * IMG_SCALE, color: "#eab308" },
+  { name: "Automation Zone", x: 81, y: IMG_TOP + 34 * IMG_SCALE, color: "#3b82f6" },
+  { name: "Research Zone", x: 21, y: IMG_TOP + 60 * IMG_SCALE, color: "#ec4899" },
+  { name: "Operations Zone", x: 52, y: IMG_TOP + 60 * IMG_SCALE, color: "#84cc16" },
+  { name: "Support Zone", x: 81, y: IMG_TOP + 60 * IMG_SCALE, color: "#14b8a6" },
 ];
 
 const ENTRANCE = { x: 50, y: IMG_TOP };
@@ -95,16 +95,16 @@ export default function RealisticOfficeView() {
       overflow: "hidden",
       background: "#080a10",
     }}>
-      {/* Square container — image fits inside with contain */}
-      <div style={{ position: "relative", width: "100%", paddingBottom: "100%" }}>
+      {/* Container matches image aspect ratio — no black bars */}
+      <div style={{ position: "relative", width: "100%", paddingBottom: `${(1 / IMAGE_ASPECT) * 100}%` }}>
         <div style={{ position: "absolute", inset: 0 }}>
 
-      {/* Background — fills exactly, no crop, no gap */}
+      {/* Background — fills exactly */}
       <img
         src="/offices/realistic-office.png"
         alt="Office"
         draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "fill", display: "block" }}
         onError={(e) => { (e.target as HTMLImageElement).src = "/offices/cyberpunk.jpeg"; }}
       />
 
