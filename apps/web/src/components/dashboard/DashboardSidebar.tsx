@@ -1,0 +1,101 @@
+"use client";
+
+import type { NavSection } from "@/app/v2/page";
+
+interface DashboardSidebarProps {
+  activeNav: NavSection;
+  onNavigate: (section: NavSection) => void;
+}
+
+const NAV_ITEMS: Array<{ id: NavSection; label: string; icon: string; badge?: number }> = [
+  { id: "overview", label: "Overview", icon: "◆" },
+  { id: "office", label: "Office", icon: "🏢" },
+  { id: "hr-room", label: "HR Room", icon: "👥" },
+  { id: "agents", label: "Agents", icon: "🤖" },
+  { id: "tasks", label: "Tasks", icon: "📋" },
+  { id: "pipelines", label: "Pipelines", icon: "⚡" },
+  { id: "memory", label: "Memory", icon: "🧠" },
+  { id: "git", label: "Git Repos", icon: "🔀" },
+  { id: "knowledge", label: "Knowledge Base", icon: "📚" },
+  { id: "activity", label: "Activity", icon: "📊" },
+  { id: "notifications", label: "Notifications", icon: "🔔" },
+  { id: "settings", label: "Settings", icon: "⚙" },
+];
+
+export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSidebarProps) {
+  return (
+    <aside className="v2-sidebar">
+      {/* Logo */}
+      <div style={{ padding: "20px 16px 24px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: "linear-gradient(135deg, var(--v2-accent), var(--v2-purple))",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 16, fontWeight: 700, color: "#fff",
+        }}>N</div>
+        <div className="v2-nav-label">
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>NVLABS</div>
+          <div style={{ fontSize: 10, color: "var(--v2-text-muted)" }}>Mission Control</div>
+        </div>
+      </div>
+
+      {/* Nav items */}
+      <nav style={{ flex: 1, padding: "0 0 16px" }}>
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            className={`v2-nav-item ${activeNav === item.id ? "active" : ""}`}
+            onClick={() => onNavigate(item.id)}
+          >
+            <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>{item.icon}</span>
+            <span className="v2-nav-label" style={{ flex: 1 }}>{item.label}</span>
+            {item.badge && (
+              <span className="v2-badge" style={{ background: "var(--v2-red)", color: "#fff", fontSize: 9 }}>
+                {item.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {/* System Status */}
+      <div style={{ padding: "12px 16px", borderTop: "1px solid var(--v2-card-border)" }}>
+        <div className="v2-sidebar-section-title" style={{ fontSize: 10, color: "var(--v2-text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+          System Status
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <StatusRow label="Gateway" status="online" />
+          <StatusRow label="WebSocket" status="connected" />
+          <StatusRow label="Database" status="healthy" />
+          <StatusRow label="Memory Store" status="healthy" />
+        </div>
+      </div>
+
+      {/* User */}
+      <div style={{ padding: "12px 16px", borderTop: "1px solid var(--v2-card-border)", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%",
+          background: "linear-gradient(135deg, #6366f1, #a855f7)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 12, fontWeight: 600, color: "#fff",
+        }}>NY</div>
+        <div className="v2-user-info">
+          <div style={{ fontSize: 12, fontWeight: 500, color: "#fff" }}>Navi Yanka</div>
+          <div style={{ fontSize: 10, color: "var(--v2-text-muted)" }}>Administrator</div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function StatusRow({ label, status }: { label: string; status: string }) {
+  const isGood = status === "online" || status === "connected" || status === "healthy";
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11 }}>
+      <span style={{ color: "var(--v2-text-muted)" }}>{label}</span>
+      <span style={{ color: isGood ? "var(--v2-green)" : "var(--v2-red)", fontWeight: 500, fontSize: 10 }}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    </div>
+  );
+}
