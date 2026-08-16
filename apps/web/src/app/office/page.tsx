@@ -2646,7 +2646,17 @@ export default function OfficePage() {
                           value={prompt}
                           onPaste={handlePasteText}
                           onChange={(e) => setPrompt(e.target.value)}
-                          onKeyDown={(e) => { if (prompt.startsWith("/") && !prompt.includes(" ")) { return; } if (isRealEnter(e)) handleRunTask(); }}
+                          onKeyDown={(e) => {
+                            if (prompt.startsWith("/") && !prompt.includes(" ")) {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                // Let the slash menu handle it — fire the command directly
+                                window.dispatchEvent(new CustomEvent("slash-command-execute", { detail: { command: prompt } }));
+                              }
+                              return;
+                            }
+                            if (isRealEnter(e)) handleRunTask();
+                          }}
                           placeholder="Send a message..."
                           style={{
                             flex: 1, padding: "9px 12px", border: `1px solid ${TERM_BORDER_DIM}`,
@@ -2758,7 +2768,14 @@ export default function OfficePage() {
                         value={prompt}
                         onPaste={handlePasteText}
                         onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={(e) => isRealEnter(e) && handleRunTask()}
+                        onKeyDown={(e) => {
+                          if (prompt.startsWith("/") && !prompt.includes(" ") && e.key === "Enter") {
+                            e.preventDefault();
+                            window.dispatchEvent(new CustomEvent("slash-command-execute", { detail: { command: prompt } }));
+                            return;
+                          }
+                          if (isRealEnter(e)) handleRunTask();
+                        }}
                         placeholder="Send a message..."
                         style={{
                           flex: 1, padding: "9px 12px", border: `1px solid ${TERM_BORDER}`,

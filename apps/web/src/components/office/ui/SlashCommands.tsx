@@ -103,16 +103,21 @@ export function SlashCommandMenu({
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Document-level listener for arrow navigation (works regardless of focus)
+  // Document-level listener for arrow navigation AND Enter/Tab selection (capture phase — fires first)
   useEffect(() => {
-    if (!visible || filtered.length === 0 || !onArrow) return;
+    if (!visible || filtered.length === 0) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") { e.preventDefault(); onArrow("down"); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); onArrow("up"); }
+      if (e.key === "ArrowDown") { e.preventDefault(); onArrow?.("down"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); onArrow?.("up"); }
+      else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onSelect(filtered[selectedIdx]);
+      }
     };
     document.addEventListener("keydown", handler, true); // capture phase
     return () => document.removeEventListener("keydown", handler, true);
-  }, [visible, filtered.length, onArrow]);
+  }, [visible, filtered, selectedIdx, onArrow, onSelect]);
 
   // Scroll selected into view
   useEffect(() => {
