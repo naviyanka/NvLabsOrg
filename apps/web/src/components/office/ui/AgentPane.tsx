@@ -557,7 +557,8 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
       onPromptChange(cmd.command + " ");
     } else {
       onPromptChange(cmd.command);
-      setTimeout(() => onSubmit(), 0);
+      // Delay to allow React to re-render with new prompt before submit reads it
+      setTimeout(() => onSubmit(), 50);
     }
   }, [onPromptChange, onSubmit]);
 

@@ -629,6 +629,8 @@ export default function OfficePage() {
 
   // When prompt clears (user submitted), force next auto-scroll
   const prevPromptRef = useRef(prompt);
+  const promptRef = useRef(prompt);
+  promptRef.current = prompt;
   useEffect(() => {
     if (prevPromptRef.current && !prompt) {
       wasAtBottomRef.current = true;
@@ -948,12 +950,12 @@ export default function OfficePage() {
   }, []);
 
   const handleRunTask = useCallback(async () => {
-    if (!selectedAgent || (!prompt.trim() && pendingImages.length === 0)) return;
+    if (!selectedAgent || (!promptRef.current.trim() && pendingImages.length === 0)) return;
     const agent = agents.get(selectedAgent);
     if (agent?.isExternal) return;
 
     // ── Slash command interception ──
-    const trimmed = prompt.trim();
+    const trimmed = promptRef.current.trim();
     if (trimmed.startsWith("/")) {
       const spaceIdx = trimmed.indexOf(" ");
       const cmd = (spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx)).toLowerCase();
@@ -1187,7 +1189,7 @@ export default function OfficePage() {
     const imagePaths = await uploadImages(pendingImages);
 
     // Expand pasted text labels back to full content
-    let finalPrompt = prompt.trim();
+    let finalPrompt = promptRef.current.trim();
     for (const [label, fullText] of pasteMapRef.current) {
       finalPrompt = finalPrompt.replace(label, fullText);
     }
@@ -1213,7 +1215,7 @@ export default function OfficePage() {
     setPrompt("");
     setPendingImages([]);
     pasteMapRef.current.clear();
-  }, [selectedAgent, prompt, pendingImages, addUserMessage, agents, uploadImages]);
+  }, [selectedAgent, pendingImages, addUserMessage, agents, uploadImages]);
 
   const handleCancel = useCallback(() => {
     if (!selectedAgent) return;
