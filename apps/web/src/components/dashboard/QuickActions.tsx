@@ -1,12 +1,14 @@
 "use client";
 
+import { UserPlus, ClipboardPlus, Workflow, DoorOpen, Building2 } from "lucide-react";
+
 export default function QuickActions() {
   const actions = [
-    { label: "Add Agent", icon: "👤", color: "#6366f1" },
-    { label: "Create Task", icon: "📋", color: "#3b82f6" },
-    { label: "New Pipeline", icon: "⚡", color: "#22c55e" },
-    { label: "Open HR Room", icon: "🚪", color: "#f97316" },
-    { label: "View Office", icon: "🏢", color: "#a855f7" },
+    { label: "Add Agent", Icon: UserPlus, color: "#6366f1" },
+    { label: "Create Task", Icon: ClipboardPlus, color: "#3b82f6" },
+    { label: "New Pipeline", Icon: Workflow, color: "#22c55e" },
+    { label: "Open HR Room", Icon: DoorOpen, color: "#f97316" },
+    { label: "View Office", Icon: Building2, color: "#a855f7" },
   ];
 
   return (
@@ -18,8 +20,8 @@ export default function QuickActions() {
             <span style={{
               width: 28, height: 28, borderRadius: 6,
               background: `${action.color}15`, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14,
-            }}>{action.icon}</span>
+              color: action.color,
+            }}><action.Icon size={14} /></span>
             <span style={{ fontWeight: 500 }}>{action.label}</span>
           </button>
         ))}

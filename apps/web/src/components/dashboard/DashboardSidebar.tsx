@@ -2,36 +2,36 @@
 
 import { useOfficeStore } from "@/store/office-store";
 import type { NavSection } from "@/app/v2/page";
+import { LayoutDashboard, Building2, Users, Bot, ClipboardList, Zap, Brain, GitBranch, BookOpen, Activity, Bell, Settings } from "lucide-react";
 
 interface DashboardSidebarProps {
   activeNav: NavSection;
   onNavigate: (section: NavSection) => void;
 }
 
-const NAV_ITEMS: Array<{ id: NavSection; label: string; icon: string; badge?: number }> = [
-  { id: "overview", label: "Overview", icon: "◆" },
-  { id: "office", label: "Office", icon: "🏢" },
-  { id: "hr-room", label: "HR Room", icon: "👥" },
-  { id: "agents", label: "Agents", icon: "🤖" },
-  { id: "tasks", label: "Tasks", icon: "📋" },
-  { id: "pipelines", label: "Pipelines", icon: "⚡" },
-  { id: "memory", label: "Memory", icon: "🧠" },
-  { id: "git", label: "Git Repos", icon: "🔀" },
-  { id: "knowledge", label: "Knowledge Base", icon: "📚" },
-  { id: "activity", label: "Activity", icon: "📊" },
-  { id: "notifications", label: "Notifications", icon: "🔔" },
-  { id: "settings", label: "Settings", icon: "⚙" },
+const NAV_ITEMS: Array<{ id: NavSection; label: string; Icon: any; badge?: number }> = [
+  { id: "overview", label: "Overview", Icon: LayoutDashboard },
+  { id: "office", label: "Office", Icon: Building2 },
+  { id: "hr-room", label: "HR Room", Icon: Users },
+  { id: "agents", label: "Agents", Icon: Bot },
+  { id: "tasks", label: "Tasks", Icon: ClipboardList },
+  { id: "pipelines", label: "Pipelines", Icon: Zap },
+  { id: "memory", label: "Memory", Icon: Brain },
+  { id: "git", label: "Git Repos", Icon: GitBranch },
+  { id: "knowledge", label: "Knowledge Base", Icon: BookOpen },
+  { id: "activity", label: "Activity", Icon: Activity },
+  { id: "notifications", label: "Notifications", Icon: Bell },
+  { id: "settings", label: "Settings", Icon: Settings },
 ];
 
 export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSidebarProps) {
   const connected = useOfficeStore((s) => s.connected);
-  const notifications = useOfficeStore((s) => s.notifications);
   const unread = useOfficeStore((s) => s.unreadNotifications);
 
-  // Add badge count to notifications nav item
   const navItems = NAV_ITEMS.map(item =>
     item.id === "notifications" ? { ...item, badge: unread || undefined } : item
   );
+
   return (
     <aside className="v2-sidebar">
       {/* Logo */}
@@ -56,7 +56,7 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
             className={`v2-nav-item ${activeNav === item.id ? "active" : ""}`}
             onClick={() => onNavigate(item.id)}
           >
-            <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>{item.icon}</span>
+            <item.Icon size={16} style={{ flexShrink: 0 }} />
             <span className="v2-nav-label" style={{ flex: 1 }}>{item.label}</span>
             {item.badge && (
               <span className="v2-badge" style={{ background: "var(--v2-red)", color: "#fff", fontSize: 9 }}>

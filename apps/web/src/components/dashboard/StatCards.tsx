@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useOfficeStore } from "@/store/office-store";
+import { Users, ClipboardList, Zap, Flame, DollarSign } from "lucide-react";
 
 export default function StatCards() {
   const agents = useOfficeStore((s) => s.agents);
@@ -16,15 +17,14 @@ export default function StatCards() {
     const totalInput = agentList.reduce((s, a) => s + (a.tokenUsage?.inputTokens ?? 0), 0);
     const totalOutput = agentList.reduce((s, a) => s + (a.tokenUsage?.outputTokens ?? 0), 0);
     const totalTokens = totalInput + totalOutput;
-    // Estimated cost (using ~$3/1M input, ~$15/1M output as weighted average)
     const estCost = (totalInput / 1_000_000) * 3 + (totalOutput / 1_000_000) * 15;
 
     return [
-      { label: "Active Agents", value: String(activeCount), sub: `/${totalDefs || 32}`, change: "+12%", changeUp: true, color: "#6366f1", icon: "👤" },
-      { label: "Active Tasks", value: String(workingCount), sub: `/${activeCount || 1}`, change: "+8%", changeUp: true, color: "#3b82f6", icon: "📋" },
-      { label: "Pipelines", value: "—", sub: "", change: "", changeUp: true, color: "#22c55e", icon: "⚡" },
-      { label: "Token Usage (24h)", value: formatTokens(totalTokens), sub: "", change: "+3%", changeUp: true, color: "#eab308", icon: "🔥" },
-      { label: "Est. Spend (24h)", value: `$${estCost.toFixed(2)}`, sub: "", change: "+7%", changeUp: estCost > 0, color: "#ef4444", icon: "💰" },
+      { label: "Active Agents", value: String(activeCount), sub: `/${totalDefs || 32}`, change: "+12%", changeUp: true, color: "#6366f1", Icon: Users },
+      { label: "Active Tasks", value: String(workingCount), sub: `/${activeCount || 1}`, change: "+8%", changeUp: true, color: "#3b82f6", Icon: ClipboardList },
+      { label: "Pipelines", value: "—", sub: "", change: "", changeUp: true, color: "#22c55e", Icon: Zap },
+      { label: "Token Usage (24h)", value: formatTokens(totalTokens), sub: "", change: "+3%", changeUp: true, color: "#eab308", Icon: Flame },
+      { label: "Est. Spend (24h)", value: `$${estCost.toFixed(2)}`, sub: "", change: "+7%", changeUp: estCost > 0, color: "#ef4444", Icon: DollarSign },
     ];
   }, [agents, agentDefs, metricsData]);
 
@@ -37,8 +37,8 @@ export default function StatCards() {
             <span style={{
               width: 28, height: 28, borderRadius: 6,
               background: `${stat.color}15`, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14,
-            }}>{stat.icon}</span>
+              color: stat.color,
+            }}><stat.Icon size={14} /></span>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 24, fontWeight: 700, color: "#fff" }}>{stat.value}</span>

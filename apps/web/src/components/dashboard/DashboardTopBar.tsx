@@ -1,5 +1,7 @@
 "use client";
 
+import { Search, Bell, Monitor } from "lucide-react";
+
 export default function DashboardTopBar() {
   return (
     <header className="v2-topbar">
@@ -15,7 +17,7 @@ export default function DashboardTopBar() {
           color: "var(--v2-text-muted)", fontSize: 13,
         }}
       >
-        <span style={{ fontSize: 14 }}>🔍</span>
+        <Search size={14} />
         <span style={{ flex: 1, textAlign: "left" }}>Search agents, tasks, pipelines...</span>
         <kbd style={{
           fontSize: 10, padding: "2px 6px",
@@ -36,8 +38,11 @@ export default function DashboardTopBar() {
         <button style={{
           padding: "6px 14px", fontSize: 12, fontWeight: 500,
           background: "var(--v2-card)", color: "var(--v2-text)",
-          border: "none", cursor: "pointer",
-        }}>Dashboard</button>
+          border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <Monitor size={12} />
+          Dashboard
+        </button>
         <button style={{
           padding: "6px 14px", fontSize: 12, fontWeight: 500,
           background: "var(--v2-accent)", color: "#fff",
@@ -50,9 +55,9 @@ export default function DashboardTopBar() {
         width: 36, height: 36, borderRadius: 8,
         display: "flex", alignItems: "center", justifyContent: "center",
         background: "transparent", border: "1px solid var(--v2-card-border)",
-        cursor: "pointer", fontSize: 16, position: "relative",
+        cursor: "pointer", position: "relative", color: "var(--v2-text-muted)",
       }}>
-        🔔
+        <Bell size={16} />
         <span style={{
           position: "absolute", top: -2, right: -2,
           width: 16, height: 16, borderRadius: "50%",
