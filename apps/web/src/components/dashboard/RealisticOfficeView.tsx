@@ -298,37 +298,65 @@ export default function RealisticOfficeView() {
   );
 }
 
-// ─── Agent Sprite (uses PixiJS pixel character + waypoint walking) ───
+// ─── Agent Sprite (walks through hallway waypoints, idles to meeting room) ───
 function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnimation, palette, spritesReady }: {
   desk: { x: number; y: number }; path: Array<{ x: number; y: number }>;
   color: string; name: string;
   isWorking: boolean; status: string; delay: number; noAnimation: boolean; palette: number; spritesReady: boolean;
 }) {
-  // Full path: entrance → waypoints → desk
-  const fullPath = [ENTRANCE, ...path, desk];
-  const [step, setStep] = useState(noAnimation ? fullPath.length - 1 : 0);
+  const [pos, setPos] = useState<{ x: number; y: number }>(noAnimation ? desk : ENTRANCE);
+  const [isWalking, setIsWalking] = useState(!noAnimation);
   const [hovered, setHovered] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Walk through waypoints one by one
+  // Walk-in: entrance → waypoints → desk
   useEffect(() => {
-    if (noAnimation) { setStep(fullPath.length - 1); return; }
-    let current = 0;
-    const startDelay = setTimeout(() => {
-      const interval = setInterval(() => {
-        current++;
-        if (current >= fullPath.length - 1) {
-          setStep(fullPath.length - 1);
-          clearInterval(interval);
-        } else {
-          setStep(current);
-        }
-      }, 600); // 600ms per waypoint segment
-      return () => clearInterval(interval);
-    }, delay * 1000);
-    return () => clearTimeout(startDelay);
-  }, [noAnimation, delay, fullPath.length]);
+    if (noAnimation) { setPos(desk); setIsWalking(false); return; }
 
-  const pos = fullPath[step] ?? desk;
+    const fullPath = [ENTRANCE, ...path, desk];
+    let stepIdx = 0;
+
+    const walkNext = () => {
+      stepIdx++;
+      if (stepIdx >= fullPath.length) {
+        // Arrived at desk
+        setIsWalking(false);
+        // If idle, start wandering to meeting room after a pause
+        if (!isWorking) {
+          timerRef.current = setTimeout(startIdleWander, 3000 + Math.random() * 4000);
+        }
+        return;
+      }
+      setPos(fullPath[stepIdx]);
+      timerRef.current = setTimeout(walkNext, 700);
+    };
+
+    // Start walk after staggered delay
+    timerRef.current = setTimeout(() => {
+      setPos(fullPath[0]);
+      timerRef.current = setTimeout(walkNext, 700);
+    }, delay * 1000);
+
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);  // eslint-disable-line -- run once on mount
+
+  // Idle wander: walk to meeting room and back
+  const startIdleWander = () => {
+    setIsWalking(true);
+    // Walk to meeting area
+    const meetingPos = DESK_POSITIONS[16]; // Meeting room desk 0
+    setPos(meetingPos);
+
+    timerRef.current = setTimeout(() => {
+      // Walk back to desk after staying at meeting for a bit
+      setPos(desk);
+      timerRef.current = setTimeout(() => {
+        setIsWalking(false);
+        // Repeat after random delay
+        timerRef.current = setTimeout(startIdleWander, 5000 + Math.random() * 8000);
+      }, 1500);
+    }, 3000 + Math.random() * 2000);
+  };
 
   return (
     <div
@@ -338,21 +366,21 @@ function AgentSprite({ desk, path, color, name, isWorking, status, delay, noAnim
         position: "absolute",
         left: `${pos.x}%`, top: `${pos.y}%`,
         transform: "translate(-50%, -100%)",
-        transition: noAnimation ? "none" : "left 0.6s linear, top 0.6s linear",
+        transition: "left 0.7s ease-in-out, top 0.7s ease-in-out",
         cursor: "pointer", zIndex: 10,
       }}
     >
       {/* Character sprite — realistic or pixel depending on palette */}
       <div style={{
         filter: isWorking ? `drop-shadow(0 0 4px ${color})` : "none",
-        animation: isWorking ? "agent-bob 1.5s ease-in-out infinite" : "none",
+        animation: isWorking && !isWalking ? "agent-bob 1.5s ease-in-out infinite" : "none",
         opacity: status === "error" ? 0.4 : 1,
       }}>
         {REALISTIC_SPRITES[palette] ? (
           <RealisticAvatar
             src={REALISTIC_SPRITES[palette]}
-            direction={0}
-            walking={step < fullPath.length - 1}
+            direction={isWalking ? 2 : 0}
+            walking={isWalking}
             size={48}
           />
         ) : (
