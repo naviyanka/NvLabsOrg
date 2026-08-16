@@ -3,23 +3,6 @@
 import { useState } from "react";
 import { Users, UserCheck, Clock, AlertTriangle, WifiOff, Move, ZoomIn } from "lucide-react";
 
-/**
- * Office Page — V2 Dashboard
- * Shows the office floor plan with zones, agent sidebar, and agents at a glance.
- */
-
-const ZONES = [
-  { name: "Planning Zone", x: 5, y: 3, w: 22, h: 28, color: "#a855f7" },
-  { name: "Development Zone", x: 30, y: 3, w: 25, h: 28, color: "#22c55e" },
-  { name: "QA & Security Zone", x: 58, y: 3, w: 25, h: 28, color: "#f97316" },
-  { name: "Data Zone", x: 5, y: 35, w: 22, h: 20, color: "#06b6d4" },
-  { name: "Meeting Area", x: 30, y: 35, w: 25, h: 22, color: "#eab308" },
-  { name: "Automation Zone", x: 58, y: 35, w: 25, h: 22, color: "#3b82f6" },
-  { name: "Research Zone", x: 5, y: 60, w: 25, h: 22, color: "#ec4899" },
-  { name: "Operations Zone", x: 33, y: 62, w: 22, h: 20, color: "#84cc16" },
-  { name: "Support Zone", x: 58, y: 62, w: 25, h: 20, color: "#14b8a6" },
-];
-
 const MOCK_AGENTS = [
   { name: "Alpha", role: "Backend Developer Agent", backend: "Gemini 1.5 Pro", status: "working", zone: "Development Zone", cpu: 34, mem: 62, tokens: "128.4K", tasks: 28, uptime: "3h 42m", skills: ["Python", "FastAPI", "PostgreSQL", "Docker", "REST API", "Authentication", "JWT", "Redis"] },
   { name: "Nova", role: "Security Analyst", backend: "Claude 3.5 Sonnet", status: "idle", zone: "QA & Security Zone", cpu: 28, mem: 45, tokens: "89.2K", tasks: 15, uptime: "2h 18m", skills: ["Penetration Testing", "OWASP", "Burp Suite"] },
@@ -68,63 +51,56 @@ export default function OfficePage() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{
             flex: 1, borderRadius: 10, overflow: "hidden",
-            background: "linear-gradient(180deg, #0c1020 0%, #0a0e18 100%)",
+            background: "#080a10",
             border: "1px solid var(--v2-card-border)",
             position: "relative", minHeight: 320,
           }}>
-            {/* Background grid */}
-            <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, opacity: 0.04 }}>
-              <defs>
-                <pattern id="officeGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                  <path d="M 30 0 L 0 0 0 30" fill="none" stroke="white" strokeWidth="0.5"/>
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#officeGrid)" />
-            </svg>
+            {/* Office background image */}
+            <img
+              src="/offices/cyberpunk.jpeg"
+              alt="Office floor plan"
+              style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0, opacity: 0.85 }}
+            />
 
-            {/* Zones */}
-            {ZONES.map(zone => (
-              <div key={zone.name} style={{
-                position: "absolute",
-                left: `${zone.x}%`, top: `${zone.y}%`,
-                width: `${zone.w}%`, height: `${zone.h}%`,
-                border: `1px solid ${zone.color}50`,
-                borderRadius: 6,
-                background: `${zone.color}06`,
-              }}>
-                {/* Zone label */}
-                <div style={{
-                  position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)",
-                  padding: "2px 8px", borderRadius: 4,
-                  background: `${zone.color}30`, border: `1px solid ${zone.color}50`,
-                  fontSize: 8, fontWeight: 500, color: zone.color,
-                  whiteSpace: "nowrap",
-                }}>
-                  {zone.name}
-                </div>
+            {/* Dark overlay for contrast */}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.4) 100%)" }} />
 
-                {/* Desk sprites (decorative) */}
-                <div style={{ position: "absolute", inset: "20px 8px 8px", display: "flex", flexWrap: "wrap", gap: 4, alignContent: "flex-start", justifyContent: "center" }}>
-                  {Array.from({ length: 2 + Math.floor(Math.random() * 3) }, (_, i) => (
-                    <Desk key={i} color={zone.color} hasAgent={i < 2} agentWorking={i === 0} />
-                  ))}
-                </div>
-              </div>
-            ))}
+            {/* Zone labels overlaid on the image */}
+            <ZoneLabel name="Planning Zone" color="#a855f7" top="6%" left="12%" />
+            <ZoneLabel name="Development Zone" color="#22c55e" top="6%" left="38%" />
+            <ZoneLabel name="QA & Security Zone" color="#f97316" top="6%" left="68%" />
+            <ZoneLabel name="Data Zone" color="#06b6d4" top="38%" left="14%" />
+            <ZoneLabel name="Meeting Area" color="#eab308" top="40%" left="42%" />
+            <ZoneLabel name="Automation Zone" color="#3b82f6" top="38%" left="68%" />
+            <ZoneLabel name="Research Zone" color="#ec4899" top="68%" left="16%" />
+            <ZoneLabel name="Operations Zone" color="#84cc16" top="70%" left="40%" />
+            <ZoneLabel name="Support Zone" color="#14b8a6" top="70%" left="66%" />
+
+            {/* Agent glowing dots on the map */}
+            <AgentDot x="22%" y="25%" color="#22c55e" working />
+            <AgentDot x="42%" y="22%" color="#22c55e" working />
+            <AgentDot x="48%" y="28%" color="#6366f1" />
+            <AgentDot x="72%" y="20%" color="#eab308" />
+            <AgentDot x="18%" y="50%" color="#22c55e" working />
+            <AgentDot x="45%" y="52%" color="#6366f1" />
+            <AgentDot x="70%" y="48%" color="#22c55e" working />
+            <AgentDot x="20%" y="80%" color="#eab308" />
+            <AgentDot x="44%" y="78%" color="#22c55e" working />
+            <AgentDot x="70%" y="78%" color="#6366f1" />
 
             {/* Controls overlay */}
             <div style={{ position: "absolute", bottom: 12, right: 12, display: "flex", gap: 6 }}>
-              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(255,255,255,0.06)", border: "1px solid var(--v2-card-border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer" }}>
+              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer", backdropFilter: "blur(4px)" }}>
                 <span style={{ fontSize: 14 }}>+</span>
               </button>
-              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(255,255,255,0.06)", border: "1px solid var(--v2-card-border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer" }}>
+              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer", backdropFilter: "blur(4px)" }}>
                 <ZoomIn size={12} />
               </button>
             </div>
 
             {/* Breadcrumb */}
-            <div style={{ position: "absolute", top: 0, right: 0, padding: "8px 12px", fontSize: 10, color: "var(--v2-text-dim)" }}>
-              Office › Development Zone › <span style={{ color: "var(--v2-text)" }}>Alpha</span>
+            <div style={{ position: "absolute", top: 8, right: 12, padding: "4px 10px", borderRadius: 6, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", fontSize: 10, color: "var(--v2-text-dim)" }}>
+              Office › <span style={{ color: "var(--v2-green)" }}>Development Zone</span> › <span style={{ color: "var(--v2-text)" }}>Alpha</span>
             </div>
           </div>
 
@@ -270,16 +246,30 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-function Desk({ color, hasAgent, agentWorking }: { color: string; hasAgent: boolean; agentWorking: boolean }) {
+function ZoneLabel({ name, color, top, left }: { name: string; color: string; top: string; left: string }) {
   return (
-    <div style={{ width: 28, height: 22, borderRadius: 3, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-      {/* Monitor */}
-      <div style={{ width: 12, height: 8, borderRadius: 1, background: hasAgent ? `${color}40` : "rgba(255,255,255,0.02)", border: `1px solid ${hasAgent ? color + "60" : "rgba(255,255,255,0.05)"}` }} />
-      {/* Agent indicator */}
-      {hasAgent && (
-        <div style={{ position: "absolute", bottom: -3, left: "50%", transform: "translateX(-50%)", width: 5, height: 5, borderRadius: "50%", background: agentWorking ? "#22c55e" : "#6366f1", boxShadow: `0 0 4px ${agentWorking ? "#22c55e" : "#6366f1"}` }} />
-      )}
+    <div style={{
+      position: "absolute", top, left, transform: "translateX(-50%)",
+      padding: "3px 10px", borderRadius: 4,
+      background: `${color}35`, border: `1px solid ${color}70`,
+      fontSize: 9, fontWeight: 600, color,
+      whiteSpace: "nowrap", backdropFilter: "blur(2px)",
+      boxShadow: `0 0 8px ${color}20`,
+    }}>
+      {name}
     </div>
+  );
+}
+
+function AgentDot({ x, y, color, working }: { x: string; y: string; color: string; working?: boolean }) {
+  return (
+    <div style={{
+      position: "absolute", left: x, top: y, transform: "translate(-50%, -50%)",
+      width: working ? 10 : 7, height: working ? 10 : 7,
+      borderRadius: "50%", background: color,
+      boxShadow: `0 0 ${working ? 10 : 5}px ${color}, 0 0 ${working ? 20 : 10}px ${color}60`,
+      animation: working ? "pulse 2s infinite" : "none",
+    }} />
   );
 }
 
