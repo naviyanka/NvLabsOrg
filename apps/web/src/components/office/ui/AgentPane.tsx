@@ -1,4 +1,4 @@
-import { useRef, useEffect, memo, useCallback, useState } from "react";
+import { useRef, useEffect, memo, useCallback, useState, useMemo } from "react";
 import { useScrollAnchor } from "./useScrollAnchor";
 import { getStatusConfig, BACKEND_OPTIONS } from "./office-constants";
 import { TERM_FONT, TERM_SIZE, TERM_GREEN, TERM_DIM, TERM_TEXT, TERM_TEXT_BRIGHT, TERM_BG, TERM_PANEL, TERM_SURFACE, TERM_BORDER, TERM_BORDER_DIM, TERM_SEM_GREEN, TERM_SEM_YELLOW, TERM_SEM_RED, TERM_SEM_BLUE, TERM_SEM_CYAN } from "./termTheme";
@@ -7,7 +7,7 @@ import { SysMsg, TokenBadge, MdContent } from "./MessageBubble";
 import { TermButton, TermInput, TermEmpty } from "./primitives";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CostBadge } from "./CostEstimator";
-import { SlashCommandMenu, useSlashMenu, type SlashCommand } from "./SlashCommands";
+import { SlashCommandMenu, type SlashCommand } from "./SlashCommands";
 
 /** Export an agent's conversation as a Markdown file download */
 function exportChatAsMarkdown(agentName: string, messages: Array<{ role: string; text: string; timestamp: number }>) {
@@ -39,7 +39,7 @@ function exportChatAsMarkdown(agentName: string, messages: Array<{ role: string;
   URL.revokeObjectURL(url);
 }
 import { cn } from "@/lib/utils";
-import type { ChatMessage } from "@/store/office-store";
+import { useOfficeStore, type ChatMessage } from "@/store/office-store";
 import dynamic from "next/dynamic";
 
 const MessageBubble = dynamic(() => import("./MessageBubble"), { ssr: false });
@@ -518,15 +518,48 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
     }
   }, [prompt]);
 
-  // Slash command menu
-  const slashMenu = useSlashMenu(prompt, (cmd: SlashCommand) => {
+  // Slash command menu — state managed via ref to avoid closure staleness in memo'd component
+  const slashIdxRef = useRef(0);
+  const [slashIdx, setSlashIdx] = useState(0);
+  slashIdxRef.current = slashIdx;
+
+  const storeCommands = useOfficeStore((s) => s.slashCommands);
+  const slashMenuVisible = prompt.startsWith("/") && !prompt.includes(" ") && prompt.length >= 1;
+  const slashQuery = prompt.slice(1);
+  const slashFiltered = useMemo(() => {
+    const commands = storeCommands.length > 0 ? storeCommands : [
+      { command: "/cancel", description: "Cancel the current task", category: "Agent" },
+      { command: "/fire", description: "Fire this agent", category: "Agent" },
+      { command: "/clear", description: "Clear chat messages", category: "Agent" },
+      { command: "/git", description: "Show git status", category: "Project" },
+      { command: "/diff", description: "Show last git diff", category: "Project" },
+      { command: "/push", description: "Push current branch", category: "Project" },
+      { command: "/pr", description: "Create a pull request", category: "Project" },
+      { command: "/broadcast", description: "Send to all agents", category: "Multi-Agent" },
+      { command: "/hire", description: "Hire a new agent", category: "Multi-Agent" },
+      { command: "/export", description: "Export chat as markdown", category: "Tools" },
+      { command: "/model", description: "Change AI model", category: "Tools" },
+      { command: "/pipeline", description: "Open pipeline builder", category: "Tools" },
+      { command: "/settings", description: "Open settings", category: "Tools" },
+      { command: "/help", description: "Show all commands", category: "Info" },
+      { command: "/status", description: "Refresh agent status", category: "Info" },
+    ];
+    if (!slashQuery) return commands;
+    const lower = slashQuery.toLowerCase();
+    return commands.filter(c => c.command.slice(1).startsWith(lower) || c.description.toLowerCase().includes(lower));
+  }, [slashQuery, storeCommands]);
+
+  // Reset selection when filter changes
+  useEffect(() => { setSlashIdx(0); }, [slashFiltered.length, slashQuery]);
+
+  const handleSlashSelect = useCallback((cmd: { command: string; argHint?: string }) => {
     if (cmd.argHint) {
       onPromptChange(cmd.command + " ");
     } else {
       onPromptChange(cmd.command);
       setTimeout(() => onSubmit(), 0);
     }
-  });
+  }, [onPromptChange, onSubmit]);
 
   // ── Scroll-away detection for "new messages" pill ──
   const [scrolledAway, setScrolledAway] = useState(false);
@@ -1051,19 +1084,12 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
             return (
               <div className="term-input-area px-3 py-2 bg-term-panel shrink-0" style={{ position: "relative" }}>
                 {/* Slash command autocomplete */}
-                {slashMenu.menuVisible && !busy && (
+                {slashMenuVisible && !busy && (
                   <SlashCommandMenu
-                    visible={slashMenu.menuVisible && !busy}
-                    filtered={slashMenu.filtered}
-                    selectedIdx={slashMenu.selectedIdx}
-                    onSelect={(cmd: SlashCommand) => {
-                      if (cmd.argHint) {
-                        onPromptChange(cmd.command + " ");
-                      } else {
-                        onPromptChange(cmd.command);
-                        setTimeout(() => onSubmit(), 0);
-                      }
-                    }}
+                    visible={slashMenuVisible && !busy}
+                    filtered={slashFiltered}
+                    selectedIdx={slashIdx}
+                    onSelect={handleSlashSelect}
                   />
                 )}
                 {isTeamMember ? (
@@ -1083,10 +1109,28 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                         onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
                         onKeyDown={(e) => {
                           if (e.key === "Escape" && busy) { onCancel(); return; }
-                          // Let slash menu handle navigation/selection keys
-                          if (!busy && slashMenu.handleKeyDown(e)) {
-                            e.preventDefault();
-                            return;
+                          // Slash command menu keyboard handling
+                          if (!busy && slashMenuVisible && slashFiltered.length > 0) {
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1));
+                              return;
+                            }
+                            if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setSlashIdx(Math.max(slashIdxRef.current - 1, 0));
+                              return;
+                            }
+                            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                              e.preventDefault();
+                              handleSlashSelect(slashFiltered[slashIdxRef.current]);
+                              return;
+                            }
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              onPromptChange("");
+                              return;
+                            }
                           }
                           if (isRealEnter(e)) { e.preventDefault(); onSubmit(); }
                         }}
