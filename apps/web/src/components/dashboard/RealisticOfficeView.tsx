@@ -83,12 +83,16 @@ export default function RealisticOfficeView() {
   return (
     <div style={{
       width: "100%",
+      maxHeight: "60vh",
       position: "relative",
-      aspectRatio: `${IMAGE_ASPECT}`,
       borderRadius: 10,
       overflow: "hidden",
       background: "#080a10",
     }}>
+      {/* Aspect ratio wrapper — image fills exactly */}
+      <div style={{ position: "relative", width: "100%", paddingBottom: `${(1 / IMAGE_ASPECT) * 100}%` }}>
+        <div style={{ position: "absolute", inset: 0 }}>
+
       {/* Background — fills exactly, no crop, no gap */}
       <img
         src="/offices/realistic-office.png"
@@ -134,6 +138,9 @@ export default function RealisticOfficeView() {
           </div>
         </div>
       )}
+
+        </div>
+      </div>
     </div>
   );
 }
