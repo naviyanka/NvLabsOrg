@@ -2629,7 +2629,7 @@ export default function OfficePage() {
                           value={prompt}
                           onPaste={handlePasteText}
                           onChange={(e) => setPrompt(e.target.value)}
-                          onKeyDown={(e) => isRealEnter(e) && handleRunTask()}
+                          onKeyDown={(e) => { if (prompt.startsWith("/") && !prompt.includes(" ")) { return; } if (isRealEnter(e)) handleRunTask(); }}
                           placeholder="Send a message..."
                           style={{
                             flex: 1, padding: "9px 12px", border: `1px solid ${TERM_BORDER_DIM}`,

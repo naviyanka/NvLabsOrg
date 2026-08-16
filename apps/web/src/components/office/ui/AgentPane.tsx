@@ -1170,7 +1170,7 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                       value={prompt}
                       onPaste={onPasteText}
                       onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
-                      onKeyDown={(e) => { if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
+                      onKeyDown={(e) => { if (!busy && slashMenuVisible && slashFiltered.length > 0) { if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1)); return; } if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx(Math.max(slashIdxRef.current - 1, 0)); return; } if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) { e.preventDefault(); handleSlashSelect(slashFiltered[slashIdxRef.current]); return; } if (e.key === "Escape") { e.preventDefault(); onPromptChange(""); return; } } if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
                       placeholder="or give feedback..."
                       style={{
                         flex: 1, padding: "5px 6px", border: "none",
@@ -1192,7 +1192,7 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                       value={prompt}
                       onPaste={onPasteText}
                       onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
-                      onKeyDown={(e) => { if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
+                      onKeyDown={(e) => { if (!busy && slashMenuVisible && slashFiltered.length > 0) { if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1)); return; } if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx(Math.max(slashIdxRef.current - 1, 0)); return; } if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) { e.preventDefault(); handleSlashSelect(slashFiltered[slashIdxRef.current]); return; } if (e.key === "Escape") { e.preventDefault(); onPromptChange(""); return; } } if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
                       placeholder="request changes..."
                       style={{
                         flex: 1, padding: "5px 6px", border: "none",
@@ -1246,7 +1246,7 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                       value={prompt}
                       onPaste={onPasteText}
                       onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
-                      onKeyDown={(e) => { if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
+                      onKeyDown={(e) => { if (!busy && slashMenuVisible && slashFiltered.length > 0) { if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1)); return; } if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx(Math.max(slashIdxRef.current - 1, 0)); return; } if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) { e.preventDefault(); handleSlashSelect(slashFiltered[slashIdxRef.current]); return; } if (e.key === "Escape") { e.preventDefault(); onPromptChange(""); return; } } if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
                       placeholder="send a new task..."
                       style={{
                         flex: 1, padding: "5px 6px", border: "none",
@@ -1277,7 +1277,7 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                       value={prompt}
                       onPaste={onPasteText}
                       onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
-                      onKeyDown={(e) => { if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
+                      onKeyDown={(e) => { if (!busy && slashMenuVisible && slashFiltered.length > 0) { if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1)); return; } if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx(Math.max(slashIdxRef.current - 1, 0)); return; } if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) { e.preventDefault(); handleSlashSelect(slashFiltered[slashIdxRef.current]); return; } if (e.key === "Escape") { e.preventDefault(); onPromptChange(""); return; } } if (isRealEnter(e)) { e.preventDefault(); onSubmit(); } }}
                       placeholder="or give feedback..."
                       style={{
                         flex: 1, padding: "5px 6px", border: "none",
