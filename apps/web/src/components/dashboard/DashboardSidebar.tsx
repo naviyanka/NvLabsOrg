@@ -1,5 +1,6 @@
 "use client";
 
+import { useOfficeStore } from "@/store/office-store";
 import type { NavSection } from "@/app/v2/page";
 
 interface DashboardSidebarProps {
@@ -23,6 +24,14 @@ const NAV_ITEMS: Array<{ id: NavSection; label: string; icon: string; badge?: nu
 ];
 
 export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSidebarProps) {
+  const connected = useOfficeStore((s) => s.connected);
+  const notifications = useOfficeStore((s) => s.notifications);
+  const unread = useOfficeStore((s) => s.unreadNotifications);
+
+  // Add badge count to notifications nav item
+  const navItems = NAV_ITEMS.map(item =>
+    item.id === "notifications" ? { ...item, badge: unread || undefined } : item
+  );
   return (
     <aside className="v2-sidebar">
       {/* Logo */}
@@ -41,7 +50,7 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
 
       {/* Nav items */}
       <nav style={{ flex: 1, padding: "0 0 16px" }}>
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <button
             key={item.id}
             className={`v2-nav-item ${activeNav === item.id ? "active" : ""}`}
@@ -64,8 +73,8 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
           System Status
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <StatusRow label="Gateway" status="online" />
-          <StatusRow label="WebSocket" status="connected" />
+          <StatusRow label="Gateway" status={connected ? "online" : "offline"} />
+          <StatusRow label="WebSocket" status={connected ? "connected" : "disconnected"} />
           <StatusRow label="Database" status="healthy" />
           <StatusRow label="Memory Store" status="healthy" />
         </div>
