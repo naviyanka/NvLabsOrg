@@ -48,36 +48,55 @@ export default function TokenCostChart() {
       </div>
 
       {/* Chart */}
-      <div style={{ position: "relative", height: chartHeight + 20, overflow: "hidden" }}>
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: "100%", height: chartHeight }} preserveAspectRatio="none">
-          {/* Grid lines */}
-          {[0.25, 0.5, 0.75].map(y => (
-            <line key={y} x1={0} y1={chartHeight * y} x2={chartWidth} y2={chartHeight * y} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
-          ))}
-          {/* Token area */}
-          <path d={toArea(tokenData)} fill="url(#tokenGrad)" opacity={0.3} />
-          <path d={toPath(tokenData)} fill="none" stroke="var(--v2-accent)" strokeWidth={2} />
-          {/* Cost area */}
-          <path d={toArea(costData)} fill="url(#costGrad)" opacity={0.2} />
-          <path d={toPath(costData)} fill="none" stroke="var(--v2-green)" strokeWidth={2} />
-          {/* Gradients */}
-          <defs>
-            <linearGradient id="tokenGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--v2-accent)" />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-            <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--v2-green)" />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-          </defs>
-        </svg>
+      <div style={{ position: "relative", height: chartHeight + 20, overflow: "hidden", display: "flex" }}>
+        {/* Left Y-axis labels */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingRight: 8, fontSize: 9, color: "var(--v2-text-dim)", width: 32 }}>
+          <span>200K</span>
+          <span>150K</span>
+          <span>100K</span>
+          <span>50K</span>
+          <span>0</span>
+        </div>
 
-        {/* X-axis labels */}
-        <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 4 }}>
-          {["00:00", "06:00", "12:00", "18:00", "24:00"].map(t => (
-            <span key={t} style={{ fontSize: 9, color: "var(--v2-text-dim)" }}>{t}</span>
-          ))}
+        <div style={{ flex: 1, position: "relative" }}>
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: "100%", height: chartHeight }} preserveAspectRatio="none">
+            {/* Grid lines */}
+            {[0.25, 0.5, 0.75].map(y => (
+              <line key={y} x1={0} y1={chartHeight * y} x2={chartWidth} y2={chartHeight * y} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            ))}
+            {/* Token area */}
+            <path d={toArea(tokenData)} fill="url(#tokenGrad)" opacity={0.3} />
+            <path d={toPath(tokenData)} fill="none" stroke="var(--v2-accent)" strokeWidth={2} />
+            {/* Cost area */}
+            <path d={toArea(costData)} fill="url(#costGrad)" opacity={0.2} />
+            <path d={toPath(costData)} fill="none" stroke="var(--v2-green)" strokeWidth={2} />
+            {/* Gradients */}
+            <defs>
+              <linearGradient id="tokenGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--v2-accent)" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+              <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--v2-green)" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* X-axis labels */}
+          <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 4 }}>
+            {["00:00", "06:00", "12:00", "18:00", "24:00"].map(t => (
+              <span key={t} style={{ fontSize: 9, color: "var(--v2-text-dim)" }}>{t}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Y-axis labels (cost) */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingLeft: 8, fontSize: 9, color: "var(--v2-text-dim)", width: 28 }}>
+          <span>$60</span>
+          <span>$40</span>
+          <span>$20</span>
+          <span>$0</span>
         </div>
       </div>
 

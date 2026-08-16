@@ -37,7 +37,7 @@ export default function DashboardTopBar() {
       }}>
         <button style={{
           padding: "6px 14px", fontSize: 12, fontWeight: 500,
-          background: "var(--v2-card)", color: "var(--v2-text)",
+          background: "transparent", color: "var(--v2-text-muted)",
           border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
         }}>
           <Monitor size={12} />
@@ -46,7 +46,7 @@ export default function DashboardTopBar() {
         <button style={{
           padding: "6px 14px", fontSize: 12, fontWeight: 500,
           background: "var(--v2-accent)", color: "#fff",
-          border: "none", cursor: "pointer",
+          border: "none", cursor: "pointer", borderRadius: 6,
         }}>Office</button>
       </div>
 

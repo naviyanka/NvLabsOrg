@@ -9,13 +9,13 @@ interface DashboardSidebarProps {
   onNavigate: (section: NavSection) => void;
 }
 
-const NAV_ITEMS: Array<{ id: NavSection; label: string; Icon: any; badge?: number }> = [
+const NAV_ITEMS: Array<{ id: NavSection; label: string; Icon: any; badge?: string; hasChevron?: boolean }> = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
   { id: "office", label: "Office", Icon: Building2 },
-  { id: "hr-room", label: "HR Room", Icon: Users },
-  { id: "agents", label: "Agents", Icon: Bot },
-  { id: "tasks", label: "Tasks", Icon: ClipboardList },
-  { id: "pipelines", label: "Pipelines", Icon: Zap },
+  { id: "hr-room", label: "HR Room", Icon: Users, badge: "New" },
+  { id: "agents", label: "Agents", Icon: Bot, hasChevron: true },
+  { id: "tasks", label: "Tasks", Icon: ClipboardList, hasChevron: true },
+  { id: "pipelines", label: "Pipelines", Icon: Zap, hasChevron: true },
   { id: "memory", label: "Memory", Icon: Brain },
   { id: "git", label: "Git Repos", Icon: GitBranch },
   { id: "knowledge", label: "Knowledge Base", Icon: BookOpen },
@@ -29,7 +29,7 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
   const unread = useOfficeStore((s) => s.unreadNotifications);
 
   const navItems = NAV_ITEMS.map(item =>
-    item.id === "notifications" ? { ...item, badge: unread || undefined } : item
+    item.id === "notifications" ? { ...item, badge: unread ? String(unread) : undefined } : item
   );
 
   return (
@@ -40,8 +40,12 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
           width: 32, height: 32, borderRadius: 8,
           background: "linear-gradient(135deg, var(--v2-accent), var(--v2-purple))",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 16, fontWeight: 700, color: "#fff",
-        }}>N</div>
+          fontSize: 14, fontWeight: 700, color: "#fff",
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </div>
         <div className="v2-nav-label">
           <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>NVLABS</div>
           <div style={{ fontSize: 10, color: "var(--v2-text-muted)" }}>Mission Control</div>
@@ -59,9 +63,15 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
             <item.Icon size={16} style={{ flexShrink: 0 }} />
             <span className="v2-nav-label" style={{ flex: 1 }}>{item.label}</span>
             {item.badge && (
-              <span className="v2-badge" style={{ background: "var(--v2-red)", color: "#fff", fontSize: 9 }}>
+              <span className="v2-badge" style={{
+                background: item.badge === "New" ? "var(--v2-green)" : "var(--v2-red)",
+                color: "#fff", fontSize: 9,
+              }}>
                 {item.badge}
               </span>
+            )}
+            {item.hasChevron && !item.badge && (
+              <span className="v2-nav-label" style={{ fontSize: 10, color: "var(--v2-text-dim)" }}>›</span>
             )}
           </button>
         ))}
@@ -77,6 +87,7 @@ export default function DashboardSidebar({ activeNav, onNavigate }: DashboardSid
           <StatusRow label="WebSocket" status={connected ? "connected" : "disconnected"} />
           <StatusRow label="Database" status="healthy" />
           <StatusRow label="Memory Store" status="healthy" />
+          <StatusRow label="Vector DB" status="healthy" />
         </div>
       </div>
 
