@@ -93,13 +93,26 @@ export function SlashCommandMenu({
   filtered,
   selectedIdx,
   onSelect,
+  onArrow,
 }: {
   visible: boolean;
   filtered: SlashCommand[];
   selectedIdx: number;
   onSelect: (cmd: SlashCommand) => void;
+  onArrow?: (direction: "up" | "down") => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Document-level listener for arrow navigation (works regardless of focus)
+  useEffect(() => {
+    if (!visible || filtered.length === 0 || !onArrow) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); onArrow("down"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); onArrow("up"); }
+    };
+    document.addEventListener("keydown", handler, true); // capture phase
+    return () => document.removeEventListener("keydown", handler, true);
+  }, [visible, filtered.length, onArrow]);
 
   // Scroll selected into view
   useEffect(() => {

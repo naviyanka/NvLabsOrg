@@ -1090,6 +1090,10 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                     filtered={slashFiltered}
                     selectedIdx={slashIdx}
                     onSelect={handleSlashSelect}
+                    onArrow={(dir) => {
+                      if (dir === "down") setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1));
+                      else setSlashIdx(Math.max(slashIdxRef.current - 1, 0));
+                    }}
                   />
                 )}
                 {isTeamMember ? (
@@ -1109,20 +1113,11 @@ const AgentPane = memo(function AgentPane(props: AgentPaneProps) {
                         onChange={(e) => { onPromptChange(e.target.value); autoResize(e.currentTarget); }}
                         onKeyDown={(e) => {
                           if (e.key === "Escape" && busy) { onCancel(); return; }
-                          // Slash command menu keyboard handling
+                          // Slash command menu: Enter/Tab selects, Escape closes
                           if (!busy && slashMenuVisible && slashFiltered.length > 0) {
-                            if (e.key === "ArrowDown") {
-                              e.preventDefault();
-                              setSlashIdx(Math.min(slashIdxRef.current + 1, slashFiltered.length - 1));
-                              return;
-                            }
-                            if (e.key === "ArrowUp") {
-                              e.preventDefault();
-                              setSlashIdx(Math.max(slashIdxRef.current - 1, 0));
-                              return;
-                            }
                             if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
                               e.preventDefault();
+                              e.stopPropagation();
                               handleSlashSelect(slashFiltered[slashIdxRef.current]);
                               return;
                             }
