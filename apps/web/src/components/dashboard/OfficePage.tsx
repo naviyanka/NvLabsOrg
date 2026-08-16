@@ -47,11 +47,21 @@ export default function OfficePage() {
       </div>
 
       {/* Main content: Floor Plan + Sidebar */}
-      <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0, alignItems: "flex-start" }}>
         {/* Floor Plan */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ flex: 1, borderRadius: 10, overflow: "hidden", border: "1px solid var(--v2-card-border)", position: "relative", minHeight: 320 }}>
+          <div style={{ position: "relative" }}>
             <RealisticOfficeView />
+
+            {/* Controls overlay */}
+            <div style={{ position: "absolute", bottom: 12, right: 12, display: "flex", gap: 6, zIndex: 20 }}>
+              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer", backdropFilter: "blur(4px)" }}>
+                <span style={{ fontSize: 14 }}>+</span>
+              </button>
+              <button style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-text-muted)", cursor: "pointer", backdropFilter: "blur(4px)" }}>
+                <ZoomIn size={12} />
+              </button>
+            </div>
           </div>
 
           {/* Legend */}

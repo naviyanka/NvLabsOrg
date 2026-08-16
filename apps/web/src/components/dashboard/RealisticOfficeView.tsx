@@ -72,7 +72,7 @@ export default function RealisticOfficeView() {
   }, [agents]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 380, borderRadius: 10, overflow: "hidden", background: "#080a10" }}>
+    <div style={{ position: "relative", width: "100%", aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: "#080a10" }}>
       {/* Background Image — fills edge to edge */}
       <img
         src="/offices/realistic-office.png"
